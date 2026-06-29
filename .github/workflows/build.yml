@@ -1,18 +1,20 @@
 name: Build Android APK
 
+# Restrict the trigger to ONLY run if the commit message matches exactly
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
 
-# Added permissions required to create releases and upload assets
 permissions:
   contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Double validation: Checks the first line of the latest commit message explicitly
+    if: ${{ github.event.head_commit.message == 'release' || github.event.pull_request.title == 'release' }}
 
     steps:
     - name: Checkout source code
@@ -33,13 +35,11 @@ jobs:
     - name: Build APK
       run: ./gradlew assemble
 
-    # This step only executes if the commit message is exactly "release"
     - name: Create GitHub Release
-      if: github.event.head_commit.message == 'release'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: "v-${{ github.run_number }}"
         name: "Release #${{ github.run_number }}"
-        body: "Automated hybrid app build from commit message triggers."
+        body: "Automated production build."
         files: app/build/outputs/apk/**/*.apk
 
