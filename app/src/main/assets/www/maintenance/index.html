@@ -1,0 +1,11 @@
+<!doctype html><html lang=en><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1"><title>System Maintenance Panel</title><link rel=stylesheet href=style.css><div class=panel-container><header class=maintenance-header><h1>System Maintenance</h1><p>A mandatory manual update is required to clear this maintenance block.</p><button id=btn_download class=btn-primary onclick=triggerUpdateDownload()>Download Update</button></header><main class=config-section><h2 class=section-title>CONFIGURATION</h2><div class="form-group row-align"><label for=check_auto_update>ENABLE AUTOMATIC UPDATES</label>
+<label class=switch-toggle><input type=checkbox id=check_auto_update onchange=toggleIntervalBox()>
+<span class=slider-round></span></label></div><div id=interval_wrapper class="form-group hidden-element"><label for=select_interval>CHECK UPDATE INTERVAL</label>
+<select id=select_interval class=input-field><option value=1>Every Hour<option value=6>Every 6 Hours<option value=12>Every 12 Hours<option value=24 selected>Every 24 Hours (Daily)</select></div><div class=form-group><label for=input_url>UPDATE URL</label>
+<input type=url id=input_url class=input-field value=http://localhost:4004/odata/v4></div><div class=form-group><label for=input_subpath>SUBPATH WITHIN ZIP (OPTIONAL)</label>
+<input id=input_subpath class=input-field placeholder="e.g. src/www"></div><div class="form-group row-align"><label for=check_auth>REQUIRES AUTHENTICATION</label>
+<label class=switch-toggle><input type=checkbox id=check_auth checked onchange=toggleAuthFields()>
+<span class=slider-round></span></label></div><div id=auth_fields_wrapper><div class=form-group><label for=input_user>USERNAME</label>
+<input id=input_user class=input-field value=alice></div><div class=form-group><label for=input_pass>PASSWORD</label>
+<input type=password id=input_pass class=input-field value=******></div></div><div class=actions-tray><button class="btn-secondary fill-action" onclick=sendConfigToNative()>Save Settings</button>
+<button class=btn-secondary onclick=triggerNativeBackClosure()>Back</button></div></main></div><script src=app.js></script>

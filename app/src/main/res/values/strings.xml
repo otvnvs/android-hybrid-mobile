@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Hybrid-Mobile App</string>
+    <string name="config_workspace_folder_name">MyHybridMobile</string>
+    <string name="virtual_host">example.com</string>
+
+</resources>
