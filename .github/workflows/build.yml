@@ -1,6 +1,5 @@
 name: Build Android APK
 
-# Trigger immediately on push events to the main branch
 on:
   push:
     branches: [ main, master ]
@@ -13,23 +12,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Quickly check out code
     - name: Checkout source code
       uses: actions/checkout@v4
 
-    # 2. Extract the actual commit message header reliably
     - name: Check Commit Message
       id: check_msg
       run: |
         COMMIT_MSG=$(git log -1 --pretty=%s)
         echo "Extracted Message: $COMMIT_MSG"
-        if [ "$COMMIT_MSG" != "release" ]; then
-          echo "Message does not match 'release'. Skipping build execution."
-          exit 0
+        
+        # Check if the message starts with 'release' (case-insensitive)
+        if [[ "${COMMIT_MSG,,}" =~ ^release ]]; then
+          echo "match=true" >> $GITHUB_OUTPUT
+          
+          # Split the string by colon into an array
+          IFS=':' read -r -a PARTS <<< "$COMMIT_MSG"
+          
+          # Extract and trim spaces from Title (Index 1)
+          RAW_TITLE="${PARTS[1]}"
+          TRIMMED_TITLE=$(echo "$RAW_TITLE" | xargs)
+          
+          # Extract and trim spaces from Message (Index 2)
+          RAW_BODY="${PARTS[2]}"
+          TRIMMED_BODY=$(echo "$RAW_BODY" | xargs)
+          
+          # Apply fallback defaults if fields are empty
+          TITLE="${TRIMMED_TITLE:-Release #${{ github.run_number }}}"
+          MESSAGE="${TRIMMED_BODY:-Automated production build asset.}"
+          
+          # Output variables to GitHub environment
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "body=$MESSAGE" >> $GITHUB_OUTPUT
+        else
+          echo "match=false" >> $GITHUB_OUTPUT
         fi
-        echo "match=true" >> $GITHUB_OUTPUT
 
-    # 3. Setup execution environment ONLY if match is true
     - name: Set up Java 17
       if: steps.check_msg.outputs.match == 'true'
       uses: actions/setup-java@v4
@@ -45,18 +62,16 @@ jobs:
       if: steps.check_msg.outputs.match == 'true'
       run: chmod +x gradlew
 
-    # 4. Build application binary
     - name: Build APK
       if: steps.check_msg.outputs.match == 'true'
       run: ./gradlew assemble
 
-    # 5. Create the formal GitHub Release asset
     - name: Create GitHub Release
       if: steps.check_msg.outputs.match == 'true'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: "v-${{ github.run_number }}"
-        name: "Release #${{ github.run_number }}"
-        body: "Automated production build asset."
+        name: "${{ steps.check_msg.outputs.title }}"
+        body: "${{ steps.check_msg.outputs.body }}"
         files: app/build/outputs/apk/**/*.apk
 
