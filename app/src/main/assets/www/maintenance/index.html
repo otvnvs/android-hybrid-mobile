@@ -1,11 +1,134 @@
-<!doctype html><html lang=en><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1"><title>System Maintenance Panel</title><link rel=stylesheet href=style.css><div class=panel-container><header class=maintenance-header><h1>System Maintenance</h1><p>A mandatory manual update is required to clear this maintenance block.</p><button id=btn_download class=btn-primary onclick=triggerUpdateDownload()>Download Update</button></header><main class=config-section><h2 class=section-title>CONFIGURATION</h2><div class="form-group row-align"><label for=check_auto_update>ENABLE AUTOMATIC UPDATES</label>
-<label class=switch-toggle><input type=checkbox id=check_auto_update onchange=toggleIntervalBox()>
-<span class=slider-round></span></label></div><div id=interval_wrapper class="form-group hidden-element"><label for=select_interval>CHECK UPDATE INTERVAL</label>
-<select id=select_interval class=input-field><option value=1>Every Hour<option value=6>Every 6 Hours<option value=12>Every 12 Hours<option value=24 selected>Every 24 Hours (Daily)</select></div><div class=form-group><label for=input_url>UPDATE URL</label>
-<input type=url id=input_url class=input-field value=http://localhost:4004/odata/v4></div><div class=form-group><label for=input_subpath>SUBPATH WITHIN ZIP (OPTIONAL)</label>
-<input id=input_subpath class=input-field placeholder="e.g. src/www"></div><div class="form-group row-align"><label for=check_auth>REQUIRES AUTHENTICATION</label>
-<label class=switch-toggle><input type=checkbox id=check_auth checked onchange=toggleAuthFields()>
-<span class=slider-round></span></label></div><div id=auth_fields_wrapper><div class=form-group><label for=input_user>USERNAME</label>
-<input id=input_user class=input-field value=alice></div><div class=form-group><label for=input_pass>PASSWORD</label>
-<input type=password id=input_pass class=input-field value=******></div></div><div class=actions-tray><button class="btn-secondary fill-action" onclick=sendConfigToNative()>Save Settings</button>
-<button class=btn-secondary onclick=triggerNativeBackClosure()>Back</button></div></main></div><script src=app.js></script>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>System Maintenance Panel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="panel-container">
+        <!-- Main Core Header -->
+        <header class="maintenance-header">
+            <!-- Sleek Icon Integration from Main Screen -->
+            <svg class="header-bolt" viewBox="0 0 24 24">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <h1>System Maintenance</h1>
+            <button id="btn_download" class="btn-primary" onclick="triggerUpdateDownload()">Download Update</button>
+        </header>
+
+        <!-- Configuration Settings Layout Panel -->
+        <main class="config-section">
+            <h2 class="section-title">CONFIGURATION</h2>
+
+            <!-- Multi-Profile Management Interface Component Block -->
+<div class="profile-management-card">
+    <div class="form-group">
+        <label>CONFIGURATION PROFILE</label>
+        <div class="profile-controls-row">
+            <!-- Verify this element is an active DIV node, NOT an unclosed select tag -->
+            <div id="profile_selector_container" class="input-field simulated-select-box" onclick="openOptionSheet()">
+                briscoes
+            </div>
+        </div>
+    </div>
+    <div class="profile-actions-tray">
+        <button type="button" class="btn-action-small" onclick="createNewConfigProfile()">+ New Profile</button>
+        <button type="button" class="btn-action-small" onclick="renameActiveConfigProfile()">Rename</button>
+        <button type="button" class="btn-action-small btn-danger" id="btn_delete_profile" onclick="deleteActiveConfigProfile()">Delete</button>
+    </div>
+</div>
+
+            <!-- Auto Update Settings Block -->
+            <div class="form-group row-align">
+                <label for="check_auto_update">ENABLE AUTOMATIC UPDATES</label>
+                <label class="switch-toggle">
+                    <input type="checkbox" id="check_auto_update">
+                    <span class="slider-round"></span>
+                </label>
+            </div>
+
+            <!-- Dynamic Interval Box Wrapper View -->
+            <div id="interval_wrapper" class="form-group hidden-element">
+                <label for="select_interval">CHECK UPDATE INTERVAL</label>
+                <select id="select_interval" class="input-field">
+                    <option value="1">Every Hour</option>
+                    <option value="6">Every 6 Hours</option>
+                    <option value="12">Every 12 Hours</option>
+                    <option value="24" selected>Every 24 Hours (Daily)</option>
+                </select>
+            </div>
+
+            <!-- Corrected Update Target Remote URI Base Settings Input -->
+            <div class="form-group">
+                <label for="input_url">UPDATE URL</label>
+                <input type="url" id="input_url" class="input-field" value="http://">
+            </div>
+
+            <!-- Formally structured sub-path targeting block element -->
+            <div class="form-group">
+                <label for="input_subpath">TARGET SUBPATH</label>
+                <input type="text" id="input_subpath" class="input-field" placeholder="e.g. src/www">
+            </div>
+
+            <!-- Network Authentication Handshake Logic Gates -->
+            <div class="form-group row-align">
+                <label for="check_auth">REQUIRES AUTHENTICATION</label>
+                <label class="switch-toggle">
+                    <input type="checkbox" id="check_auth" checked>
+                    <span class="slider-round"></span>
+                </label>
+            </div>
+
+            <!-- Dynamic Authorization Fields Layout Subcontainer Block -->
+            <div id="auth_fields_wrapper">
+                <div class="form-group">
+                    <label for="input_user">USERNAME</label>
+                    <input type="text" id="input_user" class="input-field" value="alice">
+                </div>
+                <div class="form-group">
+                    <label for="input_pass">PASSWORD</label>
+                    <input type="password" id="input_pass" class="input-field" value="******">
+                </div>
+            </div>
+
+            <!-- Device Action Drawer Layout Grid -->
+            <div class="actions-tray">
+                <!-- Sync button mapping functionality from app.js to UI -->
+                <button type="button" class="btn-secondary" onclick="triggerSDCardSync()">Sync SD Card</button>
+                <button type="button" class="btn-secondary" onclick="triggerNativeBackClosure()">Back</button>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Core Native Bridge Logic Interface Controller Script -->
+    <script src="app.js"></script>
+
+<div id="custom_modal" class="modal-overlay hidden-element">
+    <div class="modal-box">
+        <h3 id="modal_title">Notification</h3>
+        <p id="modal_message" class="hidden-element"></p>
+        <input type="text" id="modal_input" class="input-field hidden-element">
+        <div class="modal-buttons" id="modal_buttons_container">
+            <!-- Programmatically injected action buttons -->
+        </div>
+    </div>
+</div>
+<div id="option_sheet_overlay" class="modal-overlay hidden-element" onclick="closeOptionSheet()">
+    <div class="bottom-sheet-container" onclick="event.stopPropagation()">
+        <!-- Handlebar anchor bar graphic element -->
+        <div class="sheet-handlebar"></div>
+        
+        <h4 class="sheet-title">Select Configuration Profile</h4>
+        
+        <!-- Options loop container row items injected via scripting -->
+        <div class="sheet-options-list" id="sheet_options_wrapper">
+            <!-- Programmatic Radio Row Injections Go Here -->
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+
