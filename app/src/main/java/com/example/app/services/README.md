@@ -66,32 +66,45 @@ This document outlines the pipeline layout showing how the custom micro-REST fra
 
 ## The Component Interception Blueprint
 
+# Hybrid Mobile System Architecture & Data Interception Pipeline
+
 ```text
- [ Front-end JavaScript Fetch ]
-               │
-               ▼
-┌────────────────────────────────────────┐
-│  MyWebViewClient.shouldInterceptRequest │
-└────────────────────────────────────────┘
-               │
+ [ Front-end JavaScript Standard Fetch / AJAX ]
+                    │
+                    ├── (POST/PUT Payload Extracted by WebScripts Polyfill)
+                    ▼
+     [ window.AndroidBridge.captureRequestBody() ] ──► (Transient In-Memory Cache)
+                    │                                        │
+                    ▼ (Standard HTTP address bar fire)       ▼
+┌─────────────────────────────────────────┐            [ AndroidBridge ]
+│  MyWebViewClient.shouldInterceptRequest │         (Key: METHOD:URL_PATH)
+└─────────────────────────────────────────┘                  │
+               │                                             │
                ├─ Host Mismatch? ──► [ Global CORS HTTP Intercept Proxy / Web ]
+               │                        │ (Writes body bytes downstream)
+               │                        ▼
+               │                     [ Outbound HttpURLConnection Pipeline ]
                │
                ▼ (Virtual Host Matches)
 ┌────────────────────────────────────────┐
 │    WebServiceRegistry.dispatch()       │
 └────────────────────────────────────────┘
                │
-               ├─ RegEx Match Success? ──► [ RequestContext Build ]
+               ├─ RegEx Match Success? ──► [ RequestContext Constructor Build ]
+               │                                      │
+               │                                      ├── (Pulls & Clears matching bytes)
+               │                                      ▼
+               │                           [ AndroidBridge.getAndClearBody() ]
                │                                      │
                │                                      ▼
-               │                           [ AppController Reflection ]
+               │                           [ AppController Reflection Invoke ]
                │                                      │
                │                                      ▼
-               │                           [ Translate ResponseContext ]
+               │                           [ Translate Custom ResponseContext ]
                │                                      │
                ▼ (No Match / returns null)            ▼
 ┌────────────────────────────────────────┐   ┌─────────────────────────┐
-│ Fallback: resolveAssetStream (www/*)  │   │ Return native Android   │
+│ Fallback: resolveAssetStream (www/*)   │   │ Return native Android   │
 └────────────────────────────────────────┘   │  WebResourceResponse    │
                │                             └─────────────────────────┘
                ▼ (Asset Missing)
@@ -101,6 +114,41 @@ This document outlines the pipeline layout showing how the custom micro-REST fra
 ```
 
 ---
+
+### Key Architectural Flow Milestones
+
+1. **Pre-Flight Synchronization Hook:** Before the browser network event leaves the JavaScript engine thread context, the native `WebScripts` polyfill extracts the body layout payload string and pushes it to `AndroidBridge` using a unified `METHOD:URL_PATH` lookup handle pattern.
+2. **Context-Paired Extraction:** Inside the `WebServiceRegistry.dispatch()` loop, when `RequestContext` is dynamically instantiated right before triggering controller reflection steps, it queries the shared bridge memory pool via `getAndClearBody()`. This populates the internal binary `byte[]` container natively, while purging the cached instance state data automatically to safeguard system memory limits.
+3. **Cross-Origin Transmission:** If the incoming transaction targets an external third-party host domain network boundary, `MyWebViewClient` captures the exact same cache lookup handle dynamically, allowing it to write the original uncorrupted standard payload string forward into the outbound `HttpURLConnection` stream natively.
+
+
+---
+
+## Transfer of Body
+
+```text
+  [ Vue 3 Web App ]                               [ Native Android Layer ]
+
+  |                                               |
+  | 1. fetch('/api/fs/write', {body: 'data'})     |
+  |    |                                          |
+  |    v [Polyfill Interceptor]                   |
+  |-- AndroidBridge.captureRequestBody() -------->| (Saves 'POST:/api/fs/write' -> 'data')
+  |                                               |
+  | 2. Standard Native Network Fetch Request      |
+  |    |                                          |
+  |    v [WebView Navigation Interceptor]         |
+  |    MyWebViewClient.shouldInterceptRequest()   |
+  |    |                                          |
+  |    v [Service Registry Router Engine]         |
+  |    WebServiceRegistry.dispatch()              |
+  |    |                                          |
+  |    v [Request Framework Context Builder]      |
+  |-- RequestContext Instantiation -------------->| AndroidBridge.getAndClearBody()
+  |                                               |   |
+  |                                               |   v [Controller Execution]
+  |                                               | FsController.createOrWriteFile()
+```
 
 ## Lifecycle Phase Breakdown
 

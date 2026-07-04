@@ -45,11 +45,14 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
         // 1. Initialize Primary Webview
         mWebView = findViewById(R.id.activity_main_webview);
         configureWebViewSettings(mWebView);
+        mWebView.addJavascriptInterface(new com.example.app.services.AndroidBridge(), "AndroidBridge");
         mWebView.setWebViewClient(new MyWebViewClient(this, mConfig));
+
 
         // 2. Initialize Maintenance Webview
         mMaintenanceWebView = findViewById(R.id.activity_maintenance_webview);
         configureWebViewSettings(mMaintenanceWebView);
+        mMaintenanceWebView.addJavascriptInterface(new com.example.app.services.AndroidBridge(), "AndroidBridge");
 	mMaintenanceWebView.setWebViewClient(new ConfigWebViewClient(this, mConfig));
 
         // Shared Chrome client for permission requests
