@@ -1,4 +1,5 @@
 package com.example.app.services.maintenance;
+import android.content.Context;
 import android.os.Environment;
 import android.util.Log;
 import com.example.app.MainActivity;
@@ -49,6 +50,50 @@ public class FsController {
             throw new SecurityException("Directory traversal attack detected!");
         }
         return target;
+    }
+
+    // =========================================================================
+    // LOCATION OPERATIONS
+    // =========================================================================
+
+    @RequestMapping(path = "/api/fs/locations", method = "GET")
+    public ResponseContext getStorageLocations(RequestContext request) {
+        try {
+            Context context = request.getAndroidContext();
+            JSONObject locations = new JSONObject();
+
+            // 1. Resolve Shared External Storage path (dynamically derived from your layout)
+            File externalRoot = getStorageRoot();
+            locations.put("external_storage_root", externalRoot.getAbsolutePath());
+
+            // 2. Resolve Private Sandbox Database directory safely
+            if (context != null) {
+                // Returns /data/user/0/com.example.app/databases
+                File sandboxDbDir = context.getDatabasePath("probe.db").getParentFile();
+                if (sandboxDbDir != null) {
+                    if (!sandboxDbDir.exists()) sandboxDbDir.mkdirs();
+                    locations.put("sandbox_databases_root", sandboxDbDir.getAbsolutePath());
+                } else {
+                    locations.put("sandbox_databases_root", "unknown_path_error");
+                }
+                locations.put("package_name", context.getPackageName());
+            } else {
+                locations.put("sandbox_databases_root", "context_unavailable");
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("status", "success");
+            result.put("locations", locations);
+
+            return ResponseContext.status(200)
+                    .contentType("application/json")
+                    .header("X-Server-Response-Engine", "Android-Native-JVM")
+                    .body(result.toString())
+                    .build();
+
+        } catch (Exception e) {
+            return buildErrorResponse(500, "Failed to resolve storage directories: " + e.getMessage());
+        }
     }
 
     // =========================================================================
