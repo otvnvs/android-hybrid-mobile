@@ -46,6 +46,7 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
         mWebView = findViewById(R.id.activity_main_webview);
         configureWebViewSettings(mWebView);
         mWebView.addJavascriptInterface(new com.example.app.services.AndroidBridge(), "AndroidBridge");
+	mWebView.addJavascriptInterface(new com.example.app.services.AndroidWebSocketBridge(this, mWebView), "AndroidWebSocketBridge");
         mWebView.setWebViewClient(new MyWebViewClient(this, mConfig));
 
 
@@ -53,6 +54,7 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
         mMaintenanceWebView = findViewById(R.id.activity_maintenance_webview);
         configureWebViewSettings(mMaintenanceWebView);
         mMaintenanceWebView.addJavascriptInterface(new com.example.app.services.AndroidBridge(), "AndroidBridge");
+	mMaintenanceWebView.addJavascriptInterface(new com.example.app.services.AndroidWebSocketBridge(this, mMaintenanceWebView), "AndroidWebSocketBridge");
 	mMaintenanceWebView.setWebViewClient(new ConfigWebViewClient(this, mConfig));
 
         // Shared Chrome client for permission requests

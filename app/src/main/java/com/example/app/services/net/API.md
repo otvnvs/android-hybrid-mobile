@@ -1,9 +1,10 @@
-## Cross-Origin Network Proxy Broker (`NetController`)
+## 4. Cross-Origin Network Proxy Broker (`NetController`)
 
 ### `POST /api/net/proxy`
 *   **Description:** Bypasses browser CORS constraints by forwarding a custom HTTP/HTTPS connection stream to a target server via the native Android Java layer network architecture. Returns remote response structures and headers.
-*   **Query Parameters:** None.
-*   **Request Body:** `application/json` object detailing connection requirements:
+*   **Query Parameters:**
+    *   `timeout_ms` *(Optional Integer)*: Controls connection and data read timeout constraints for the proxy broker itself in milliseconds. Defaults to `15000` (15 seconds) if omitted.
+*   **Request Body:** `application/json` object detailing downstream connection requirements:
     ```json
     {
       "url": "https://external.com",
@@ -17,7 +18,7 @@
 *   **Response Body:** Container detailing the proxy result outcome profile:
     ```json
     {
-      "status": 201,
+      "status": 200,
       "headers": { "Server": "nginx", "Content-Type": "application/json" },
       "body": "{\n  \"received\": true\n}"
     }

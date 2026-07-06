@@ -133,6 +133,18 @@ public class NetController {
     @RequestMapping(path="/api/net/proxy",method="POST")
     public ResponseContext proxyHttpRequest(RequestContext request){
         try{
+            int customTimeoutMs = 15000; // Default fallback: 15 seconds
+            
+            // Extract the timeout argument directly from the proxy route parameter context
+            String timeoutParam = request.getQueryParam("timeout_ms");
+            if (timeoutParam != null && !timeoutParam.isEmpty()) {
+                try {
+                    customTimeoutMs = Integer.parseInt(timeoutParam);
+                } catch (NumberFormatException nfe) {
+                    Log.w(TAG, "Invalid timeout parameter format, falling back to default.");
+                }
+            }
+
             String targetUrl="";
             String currentPath=request.getPath();
             String prefix="/api/net/proxy/";
@@ -156,8 +168,8 @@ public class NetController {
             conn.setDoInput(true);
             
             // Added explicit timeouts to prevent the proxy from hanging indefinitely
-            conn.setConnectTimeout(15000); // 15 seconds connection timeout
-            conn.setReadTimeout(15000);    // 15 seconds data read timeout
+            conn.setConnectTimeout(customTimeoutMs); // 15 seconds connection timeout
+            conn.setReadTimeout(customTimeoutMs);    // 15 seconds data read timeout
 
             java.util.Map<String,String>contextHeaders=request.getHeaders();
             if(contextHeaders!=null){

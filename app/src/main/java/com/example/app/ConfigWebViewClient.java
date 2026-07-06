@@ -36,6 +36,13 @@ public void onPageStarted(android.webkit.WebView view, String url, android.graph
     } else {
         view.loadUrl("javascript:" + com.example.app.services.WebScripts.INTERCEPT_SCRIPT);
     }
+
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+        view.evaluateJavascript(com.example.app.services.WebScripts.WEBSOCKET_PROXY_SCRIPT, null);
+    } else {
+        view.loadUrl("javascript:" + com.example.app.services.WebScripts.WEBSOCKET_PROXY_SCRIPT);
+    }
+
 }
     @Override 
     public boolean shouldOverrideKeyEvent(WebView view, KeyEvent event) {
