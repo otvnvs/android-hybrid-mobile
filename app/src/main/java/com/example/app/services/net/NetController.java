@@ -20,6 +20,10 @@ import java.nio.charset.StandardCharsets;
 public class NetController {
     private static final String TAG = "NetController";
     private static volatile String currentStatusMessage = "Idle";
+    // =========================================================================
+    // NET - New
+    // =========================================================================
+    private static final String DIAGNOSTIC_HOST = "google.com";
 
     public NetController () {
     }
@@ -50,85 +54,6 @@ public class NetController {
     // =========================================================================
     // NET
     // =========================================================================
-//	@RequestMapping(path="/api/net/proxy", method="POST")
-//	public ResponseContext proxyHttpRequest(RequestContext request) {
-//	    try {
-//		// Parse the bridge configuration sent by JavaScript
-//		String jsonConfig = new String(request.getBody(), StandardCharsets.UTF_8);
-//		JSONObject bridgeRequest = new JSONObject(jsonConfig);
-//		
-//		String targetUrl = bridgeRequest.getString("url");
-//		String method = bridgeRequest.optString("method", "GET").toUpperCase();
-//		JSONObject headers = bridgeRequest.optJSONObject("headers");
-//		String bodyPayload = bridgeRequest.optString("body", "");
-//
-//		// Setup the native network connection
-//		java.net.URL url = new java.net.URL(targetUrl);
-//		java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-//		conn.setRequestMethod(method);
-//		conn.setDoInput(true);
-//
-//		// Forward headers from WebView JavaScript to native connection
-//		if (headers != null) {
-//		    java.util.Iterator<String> keys = headers.keys();
-//		    while (keys.hasNext()) {
-//			String key = keys.next();
-//			conn.setRequestProperty(key, headers.getString(key));
-//		    }
-//		}
-//
-//		// Write outbound body payload if present
-//		if (!bodyPayload.isEmpty() && ("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method))) {
-//		    conn.setDoOutput(true);
-//		    try (java.io.OutputStream os = conn.getOutputStream()) {
-//			os.write(bodyPayload.getBytes(StandardCharsets.UTF_8));
-//		    }
-//		}
-//
-//		// Read response code
-//		int responseCode = conn.getResponseCode();
-//		
-//		// Read response headers to forward back
-//		JSONObject responseHeaders = new JSONObject();
-//		for (java.util.Map.Entry<String, java.util.List<String>> entries : conn.getHeaderFields().entrySet()) {
-//		    if (entries.getKey() != null && !entries.getValue().isEmpty()) {
-//			responseHeaders.put(entries.getKey(), entries.getValue().get(0));
-//		    }
-//		}
-//
-//		// Stream inbound response body
-//		java.io.InputStream is = (responseCode >= 200 && responseCode < 400) 
-//		    ? conn.getInputStream() 
-//		    : conn.getErrorStream();
-//		    
-//		byte[] responseBytes = new byte[0];
-//		if (is != null) {
-//		    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-//		    byte[] buffer = new byte[4096];
-//		    int length;
-//		    while ((length = is.read(buffer)) != -1) {
-//			bos.write(buffer, 0, length);
-//		    }
-//		    responseBytes = bos.toByteArray();
-//		    is.close();
-//		}
-//
-//		// Package structure to emulate direct fetch mechanics
-//		JSONObject wrapperResult = new JSONObject();
-//		wrapperResult.put("status", responseCode);
-//		wrapperResult.put("headers", responseHeaders);
-//		wrapperResult.put("body", new String(responseBytes, StandardCharsets.UTF_8));
-//
-//		return ResponseContext.status(200)
-//			.contentType("application/json")
-//			.body(wrapperResult.toString())
-//			.build();
-//
-//	    } catch (Exception e) {
-//		return buildErrorResponse(500, "Native proxy routing failed: " + e.getMessage());
-//	    }
-//	}
-
     @RequestMapping(path="/api/net/proxy", method="POST")
     public ResponseContext proxyHttpRequest(RequestContext request) {
         try {
@@ -355,7 +280,105 @@ public class NetController {
     }
 
 
+    // =========================================================================
+    // NET - New
+    // =========================================================================
 
+    @RequestMapping(path = "/api/network/diagnostics", method = "GET")
+    public ResponseContext getNetworkDiagnostics(RequestContext request) {
+        try {
+            JSONObject root = new JSONObject();
+            android.content.Context context = request.getAndroidContext();
+
+            // 1. Core Interface Connectivity Information
+            JSONObject interfaces = new JSONObject();
+            String transportType = "NONE";
+            int downstreamKbps = 0;
+            int upstreamKbps = 0;
+            boolean isMetered = true;
+
+            if (context != null) {
+                android.net.ConnectivityManager cm = (android.net.ConnectivityManager) context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+
+                if (cm != null) {
+                    if (android.os.Build.VERSION.SDK_INT >= 23) {
+                        android.net.Network activeNetwork = cm.getActiveNetwork();
+                        android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(activeNetwork);
+                        if (caps != null) {
+                            if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) {
+                                transportType = "WIFI";
+                            } else if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                                transportType = "CELLULAR";
+                            } else if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) {
+                                transportType = "ETHERNET";
+                            } else if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) {
+                                transportType = "VPN";
+                            }
+
+                            downstreamKbps = caps.getLinkDownstreamBandwidthKbps();
+                            upstreamKbps = caps.getLinkUpstreamBandwidthKbps();
+                            isMetered = cm.isActiveNetworkMetered();
+                        }
+                    } else {
+                        android.net.NetworkInfo info = cm.getActiveNetworkInfo();
+                        if (info != null && info.isConnected()) {
+                            transportType = info.getTypeName().toUpperCase();
+                            isMetered = cm.isActiveNetworkMetered();
+                        }
+                    }
+                }
+            } else {
+                interfaces.put("status", "Context unavailable");
+            }
+
+            interfaces.put("active_transport", transportType);
+            interfaces.put("link_downstream_kbps", downstreamKbps);
+            interfaces.put("link_upstream_kbps", upstreamKbps);
+            interfaces.put("is_network_metered", isMetered);
+            root.put("interfaces", interfaces);
+
+            // 2. Global System Proxy Configuration Checks
+            JSONObject proxyInfo = new JSONObject();
+            String proxyHost = System.getProperty("http.proxyHost");
+            String proxyPort = System.getProperty("http.proxyPort");
+            
+            proxyInfo.put("is_proxy_active", (proxyHost != null && !proxyHost.isEmpty()));
+            proxyInfo.put("detected_host", proxyHost != null ? proxyHost : "none");
+            proxyInfo.put("detected_port", proxyPort != null ? proxyPort : "none");
+            root.put("system_proxy", proxyInfo);
+
+            // 3. Dynamic DNS Resolution Performance Testing
+            JSONObject dnsPerformance = new JSONObject();
+            long startDnsTime = System.currentTimeMillis();
+            boolean dnsSuccess = false;
+            String resolvedIp = "unresolved";
+
+            try {
+                java.net.InetAddress address = java.net.InetAddress.getByName(DIAGNOSTIC_HOST);
+                resolvedIp = address.getHostAddress();
+                dnsSuccess = true;
+            } catch (Exception e) {
+                resolvedIp = "failed: " + e.getMessage();
+            }
+            long durationDnsMs = System.currentTimeMillis() - startDnsTime;
+
+            dnsPerformance.put("diagnostic_target_host", DIAGNOSTIC_HOST);
+            dnsPerformance.put("resolution_successful", dnsSuccess);
+            dnsPerformance.put("resolved_ip_address", resolvedIp);
+            dnsPerformance.put("resolution_latency_ms", dnsSuccess ? durationDnsMs : -1);
+            root.put("dns_perf", dnsPerformance);
+
+            return ResponseContext.status(200)
+                    .contentType("application/json")
+                    .header("X-Server-Response-Engine", "Android-Native-JVM")
+                    .body(root.toString())
+                    .build();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Network diagnostics collection engine crash", e);
+            return buildErrorResponse(500, "Network inspection pipeline error: " + e.getMessage());
+        }
+    }
 }
 
 

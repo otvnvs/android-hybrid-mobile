@@ -34,3 +34,34 @@
     *   `400 Bad Request` (Missing required url or path params)
 *   **Response Headers:** `Content-Type: application/json` (or dynamic error string values)
 *   **Response Body:** Stream buffers (or JSON string errors if validation parameters check breaks).
+
+### `GET /api/network/diagnostics`
+*   **Description:** Generates an engineering snapshot recording the application's underlying socket environment properties and connection health metrics.
+*   **Query Parameters:** None.
+*   **Request Body:** None.
+*   **Response Status:**
+    *   `200 OK` (Success)
+    *   `500 Internal Server Error` (If native interface tracking loops or DNS trace steps crash)
+*   **Response Headers:** `Content-Type: application/json`
+*   **Response Body:**
+    ```json
+    {
+      "interfaces": {
+        "active_transport": "WIFI",
+        "link_downstream_kbps": 60000,
+        "link_upstream_kbps": 12000,
+        "is_network_metered": false
+      },
+      "system_proxy": {
+        "is_proxy_active": false,
+        "detected_host": "none",
+        "detected_port": "none"
+      },
+      "dns_perf": {
+        "diagnostic_target_host": "google.com",
+        "resolution_successful": true,
+        "resolved_ip_address": "142.251.47.46",
+        "resolution_latency_ms": 3
+      }
+    }
+    ```
