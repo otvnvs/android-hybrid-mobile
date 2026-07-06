@@ -18,6 +18,7 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 import java.nio.charset.StandardCharsets;
 import com.example.app.services.StorageService;
+import android.os.StatFs;
 
 public class FsController {
     private static final String TAG = "FsController";
@@ -287,6 +288,93 @@ public ResponseContext createOrWriteFile(RequestContext request) {
 	    }
 	}
 
+    // --- ADDED DISK SPACE PARTITION DIAGNOSTICS ---
+    @RequestMapping(path = "/api/fs/diskspace", method = "GET")
+    public ResponseContext getDiskSpaceDiagnostics(RequestContext request) {
+        try {
+            JSONObject root = new JSONObject();
+            Context context = request.getAndroidContext();
+
+            // 1. Core Internal Device Flash Storage Allocation Analytics
+            JSONObject internalStorage = new JSONObject();
+            File internalPath = Environment.getDataDirectory();
+            StatFs internalStat = new StatFs(internalPath.getPath());
+            
+            long blockSizeInt = android.os.Build.VERSION.SDK_INT >= 18 ? internalStat.getBlockSizeLong() : internalStat.getBlockSize();
+            long availableBlocksInt = android.os.Build.VERSION.SDK_INT >= 18 ? internalStat.getAvailableBlocksLong() : internalStat.getAvailableBlocks();
+            long totalBlocksInt = android.os.Build.VERSION.SDK_INT >= 18 ? internalStat.getBlockCountLong() : internalStat.getBlockCount();
+            
+            internalStorage.put("partition_path", internalPath.getAbsolutePath());
+            internalStorage.put("total_space_bytes", totalBlocksInt * blockSizeInt);
+            internalStorage.put("available_space_bytes", availableBlocksInt * blockSizeInt);
+            internalStorage.put("status", "success");
+            root.put("internal_partition", internalStorage);
+
+            // 2. Removable/Secondary Hardware Micro-SD Card Mount Audits
+            JSONObject secondaryStorage = new JSONObject();
+            boolean sdCardDetected = false;
+            String sdCardPath = "unmounted";
+            long sdTotalBytes = 0;
+            long sdAvailBytes = 0;
+
+            if (context != null) {
+                File[] externalDirs = context.getExternalFilesDirs(null);
+                if (externalDirs != null && externalDirs.length > 1 && externalDirs[1] != null) {
+                    File sdFile = externalDirs[1];
+                    String rawSdPath = sdFile.getAbsolutePath();
+                    int androidIndex = rawSdPath.indexOf("/Android");
+                    if (androidIndex != -1) {
+                        File sdRoot = new File(rawSdPath.substring(0, androidIndex));
+                        if (sdRoot.exists()) {
+                            StatFs sdStat = new StatFs(sdRoot.getPath());
+                            long blockSizeSd = android.os.Build.VERSION.SDK_INT >= 18 ? sdStat.getBlockSizeLong() : sdStat.getBlockSize();
+                            long availableBlocksSd = android.os.Build.VERSION.SDK_INT >= 18 ? sdStat.getAvailableBlocksLong() : sdStat.getAvailableBlocks();
+                            long totalBlocksSd = android.os.Build.VERSION.SDK_INT >= 18 ? sdStat.getBlockCountLong() : sdStat.getBlockCount();
+                            
+                            sdCardDetected = true;
+                            sdCardPath = sdRoot.getAbsolutePath();
+                            sdTotalBytes = totalBlocksSd * blockSizeSd;
+                            sdAvailBytes = availableBlocksSd * blockSizeSd;
+                        }
+                    }
+                }
+            }
+
+            secondaryStorage.put("removable_sdcard_mounted", sdCardDetected);
+            secondaryStorage.put("partition_path", sdCardPath);
+            secondaryStorage.put("total_space_bytes", sdTotalBytes);
+            secondaryStorage.put("available_space_bytes", sdAvailBytes);
+            root.put("secondary_partition", secondaryStorage);
+
+            // 3. Application App-Specific Local Sandbox Cache Space Allocation Metrics
+            JSONObject cacheInfo = new JSONObject();
+            if (context != null) {
+                File cacheDir = context.getCacheDir();
+                File codeCacheDir = android.os.Build.VERSION.SDK_INT >= 21 ? context.getCodeCacheDir() : null;
+                
+                long totalCacheUsage = 0;
+                if (cacheDir != null && cacheDir.exists()) totalCacheUsage += calculateDirSizeHelper(cacheDir);
+                if (codeCacheDir != null && codeCacheDir.exists()) totalCacheUsage += calculateDirSizeHelper(codeCacheDir);
+                
+                cacheInfo.put("sandbox_cache_path", cacheDir != null ? cacheDir.getAbsolutePath() : "unknown");
+                cacheInfo.put("active_cache_usage_bytes", totalCacheUsage);
+                cacheInfo.put("status", "success");
+            } else {
+                cacheInfo.put("status", "Context unavailable");
+            }
+            root.put("app_sandbox_cache", cacheInfo);
+
+            return ResponseContext.status(200)
+                    .contentType("application/json")
+                    .header("X-Server-Response-Engine", "Android-Native-JVM")
+                    .body(root.toString())
+                    .build();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Disk space analytics engine execution crash", e);
+            return buildErrorResponse(500, "Disk inspection failure: " + e.getMessage());
+        }
+    }
 
     // =========================================================================
     // HELPERS
@@ -302,6 +390,21 @@ public ResponseContext createOrWriteFile(RequestContext request) {
         } catch (Exception ignored) {}
         return ResponseContext.status(code).body(errJson.toString()).build();
     }
+    private long calculateDirSizeHelper(File directory) {
+        long size = 0;
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile()) {
+                    size += file.length();
+                } else {
+                    size += calculateDirSizeHelper(file);
+                }
+            }
+        }
+        return size;
+    }
+
 
 }
 

@@ -53,3 +53,34 @@ File system operations start at the root of either internal Application static s
     }
     ```
 
+### `GET /api/fs/diskspace`
+*   **Description:** Extracts real-time hardware storage allocations, structural block partition availability, app sandbox cache footprints, and active secondary Micro-SD external storage mount variables.
+*   **Query Parameters:** None.
+*   **Request Body:** None.
+*   **Response Status:**
+    *   `200 OK` (Success)
+    *   `500 Internal Server Error` (If native hardware partition query mechanics or sandbox cache scans fail)
+*   **Response Headers:** `Content-Type: application/json`
+*   **Response Body:**
+    ```json
+    {
+      "internal_partition": {
+        "partition_path": "/data",
+        "total_space_bytes": 113432854528,
+        "available_space_bytes": 38783815680,
+        "status": "success"
+      },
+      "secondary_partition": {
+        "removable_sdcard_mounted": false,
+        "partition_path": "unmounted",
+        "total_space_bytes": 0,
+        "available_space_bytes": 0
+      },
+      "app_sandbox_cache": {
+        "sandbox_cache_path": "/data/user/0/com.example.app/cache",
+        "active_cache_usage_bytes": 63522,
+        "status": "success"
+      }
+    }
+    ```
+
