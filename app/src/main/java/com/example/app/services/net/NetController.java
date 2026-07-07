@@ -54,164 +54,158 @@ public class NetController {
     // =========================================================================
     // NET
     // =========================================================================
-//    @RequestMapping(path="/api/net/proxy", method="POST")
-//    public ResponseContext proxyHttpRequest(RequestContext request) {
-//        try {
-//            String targetUrl = "";
-//            String currentPath = request.getPath();
-//            String prefix = "/api/net/proxy/";
-//
-//            if (currentPath != null && currentPath.startsWith(prefix) && currentPath.length() > prefix.length()) {
-//                targetUrl = currentPath.substring(prefix.length());
-//                String rawQueries = request.getQueryString();
-//                if (rawQueries != null && !rawQueries.isEmpty()) {
-//                    targetUrl += "?" + rawQueries;
-//                }
-//            }
-//
-//            if (targetUrl.isEmpty()) {
-//                String jsonConfig = new String(request.getBody(), StandardCharsets.UTF_8);
-//                JSONObject bridgeRequest = new JSONObject(jsonConfig);
-//                targetUrl = bridgeRequest.getString("url");
-//            }
-//
-//            Log.i(TAG, " -> Routing proxy traffic towards target endpoint: " + targetUrl);
-//
-//            String method = request.getMethod().toUpperCase();
-//            java.net.URL url = new java.net.URL(targetUrl);
-//            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-//            conn.setRequestMethod(method);
-//            conn.setDoInput(true);
-//
-//            java.util.Map<String, String> contextHeaders = request.getHeaders();
-//            if (contextHeaders != null) {
-//                for (String key : contextHeaders.keySet()) {
-//                    conn.setRequestProperty(key, contextHeaders.get(key));
-//                }
-//            }
-//
-//            byte[] downstreamBodyPayload = request.getBody();
-//            if (downstreamBodyPayload != null && downstreamBodyPayload.length > 0 && ("POST".equals(method) || "PUT".equals(method))) {
-//                conn.setDoOutput(true);
-//                try (java.io.OutputStream os = conn.getOutputStream()) {
-//                    os.write(downstreamBodyPayload);
-//                }
-//            }
-//
-//            int responseCode = conn.getResponseCode();
-//            JSONObject responseHeaders = new JSONObject();
-//            for (java.util.Map.Entry<String, java.util.List<String>> entries : conn.getHeaderFields().entrySet()) {
-//                if (entries.getKey() != null && !entries.getValue().isEmpty()) {
-//                    responseHeaders.put(entries.getKey(), entries.getValue().get(0));
-//                }
-//            }
-//
-//            java.io.InputStream is = (responseCode >= 200 && responseCode < 400) ? conn.getInputStream() : conn.getErrorStream();
-//            byte[] responseBytes = new byte[0];
-//            if (is != null) {
-//                java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-//                byte[] buffer = new byte[4096];
-//                int length;
-//                while ((length = is.read(buffer)) != -1) {
-//                    bos.write(buffer, 0, length);
-//                }
-//                responseBytes = bos.toByteArray();
-//                is.close();
-//            }
-//
-//            JSONObject wrapperResult = new JSONObject();
-//            wrapperResult.put("status", responseCode);
-//            wrapperResult.put("headers", responseHeaders);
-//            wrapperResult.put("body", new String(responseBytes, StandardCharsets.UTF_8));
-//
-//            return ResponseContext.status(200).contentType("application/json").body(wrapperResult.toString()).build();
-//
-//        } catch (Exception e) {
-//            return ResponseContext.status(500).body("{\"status\":\"error\",\"message\":\"Native proxy routing failed: " + e.getMessage() + "\"}").build();
-//        }
-//    }
-    @RequestMapping(path="/api/net/proxy",method="POST")
-    public ResponseContext proxyHttpRequest(RequestContext request){
-        try{
-            int customTimeoutMs = 15000; // Default fallback: 15 seconds
-            
-            // Extract the timeout argument directly from the proxy route parameter context
-            String timeoutParam = request.getQueryParam("timeout_ms");
-            if (timeoutParam != null && !timeoutParam.isEmpty()) {
-                try {
-                    customTimeoutMs = Integer.parseInt(timeoutParam);
-                } catch (NumberFormatException nfe) {
-                    Log.w(TAG, "Invalid timeout parameter format, falling back to default.");
-                }
-            }
 
-            String targetUrl="";
-            String currentPath=request.getPath();
-            String prefix="/api/net/proxy/";
-            if(currentPath!=null&&currentPath.startsWith(prefix)&&currentPath.length()>prefix.length()){
-                targetUrl=currentPath.substring(prefix.length());
-                String rawQueries=request.getQueryString();
-                if(rawQueries!=null&&!rawQueries.isEmpty()){
-                    targetUrl+="?"+rawQueries;
-                }
-            }
-            if(targetUrl.isEmpty()){
-                String jsonConfig=new String(request.getBody(),StandardCharsets.UTF_8);
-                JSONObject bridgeRequest=new JSONObject(jsonConfig);
-                targetUrl=bridgeRequest.getString("url");
-            }
-            Log.i(TAG," -> Routing proxy traffic towards target endpoint: "+targetUrl);
-            String method=request.getMethod().toUpperCase();
-            java.net.URL url=new java.net.URL(targetUrl);
-            java.net.HttpURLConnection conn=(java.net.HttpURLConnection)url.openConnection();
-            conn.setRequestMethod(method);
-            conn.setDoInput(true);
-            
-            // Added explicit timeouts to prevent the proxy from hanging indefinitely
-            conn.setConnectTimeout(customTimeoutMs); // 15 seconds connection timeout
-            conn.setReadTimeout(customTimeoutMs);    // 15 seconds data read timeout
+	@RequestMapping(path="/api/net/request", method="POST")
+	public ResponseContext proxyHttpRequest(RequestContext request) {
+	    try {
+		// Read the incoming JSON configuration envelope
+		byte[] requestBodyBytes = request.getBody();
+		if (requestBodyBytes == null || requestBodyBytes.length == 0) {
+		    return ResponseContext.status(400)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Empty request body received by proxy broker.\"}")
+			.build();
+		}
 
-            java.util.Map<String,String>contextHeaders=request.getHeaders();
-            if(contextHeaders!=null){
-                for(String key:contextHeaders.keySet()){
-                    conn.setRequestProperty(key,contextHeaders.get(key));
-                }
-            }
-            byte[]downstreamBodyPayload=request.getBody();
-            if(downstreamBodyPayload!=null&&downstreamBodyPayload.length>0&&("POST".equals(method)||"PUT".equals(method))){
-                conn.setDoOutput(true);
-                try(java.io.OutputStream os=conn.getOutputStream()){
-                    os.write(downstreamBodyPayload);
-                }
-            }
-            int responseCode=conn.getResponseCode();
-            JSONObject responseHeaders=new JSONObject();
-            for(java.util.Map.Entry<String,java.util.List<String>>entries:conn.getHeaderFields().entrySet()){
-                if(entries.getKey()!=null&&!entries.getValue().isEmpty()){
-                    responseHeaders.put(entries.getKey(),entries.getValue().get(0));
-                }
-            }
-            java.io.InputStream is=(responseCode>=200&&responseCode<400)?conn.getInputStream():conn.getErrorStream();
-            byte[]responseBytes=new byte[0];
-            if(is!=null){
-                java.io.ByteArrayOutputStream bos=new java.io.ByteArrayOutputStream();
-                byte[]buffer=new byte[4096];
-                int length;
-                while((length=is.read(buffer))!=-1){
-                    bos.write(buffer,0,length);
-                }
-                responseBytes=bos.toByteArray();
-                is.close();
-            }
-            JSONObject wrapperResult=new JSONObject();
-            wrapperResult.put("status",responseCode);
-            wrapperResult.put("headers",responseHeaders);
-            wrapperResult.put("body",new String(responseBytes,StandardCharsets.UTF_8));
-            return ResponseContext.status(200).contentType("application/json").body(wrapperResult.toString()).build();
-        }catch(Exception e){
-            return ResponseContext.status(500).body("{\"status\":\"error\",\"message\":\"Native proxy routing failed: "+e.getMessage()+"\"}").build();
-        }
-    }
+		// Read and parse the root-level incoming JSON configuration envelope
+		String jsonConfig = new String(requestBodyBytes, StandardCharsets.UTF_8);
+		JSONObject rootEnvelope = new JSONObject(jsonConfig);
+
+		// 1. Process Timeout Configuration (Prioritise payload config, fall back to query param, then default 15s)
+		int customTimeoutMs = 15000; 
+		if (rootEnvelope.has("timeout_ms")) {
+		    customTimeoutMs = rootEnvelope.getInt("timeout_ms");
+		} else {
+		    String timeoutParam = request.getQueryParam("timeout_ms");
+		    if (timeoutParam != null && !timeoutParam.isEmpty()) {
+			try {
+			    customTimeoutMs = Integer.parseInt(timeoutParam);
+			} catch (NumberFormatException nfe) {
+			    Log.w(TAG, "Invalid timeout parameter format, falling back to default.");
+			}
+		    }
+		}
+
+		// 2. Validate existence of the inner "request" metadata block
+		if (!rootEnvelope.has("request")) {
+		    return ResponseContext.status(400)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Missing 'request' object containing delivery metadata.\"}")
+			.build();
+		}
+		JSONObject innerRequest = rootEnvelope.getJSONObject("request");
+
+		// 3. Extract the target downstream destination parameters
+		String targetUrl = innerRequest.optString("url", "");
+		String method = innerRequest.optString("method", "POST").toUpperCase();
+		
+		if (targetUrl.isEmpty()) {
+		    return ResponseContext.status(400)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Missing target destination 'url' parameter inside request metadata block.\"}")
+			.build();
+		}
+
+		Log.i(TAG, " -> Unwrapping request envelope and executing curl-like dispatch to: " + targetUrl);
+
+		java.net.URL url = new java.net.URL(targetUrl);
+		java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+		
+		conn.setRequestMethod(method);
+		conn.setDoInput(true);
+		conn.setConnectTimeout(customTimeoutMs);
+		conn.setReadTimeout(customTimeoutMs);
+
+		// 4. Extract and forward the target headers requested by the inner metadata block
+		if (innerRequest.has("headers")) {
+		    JSONObject customHeaders = innerRequest.getJSONObject("headers");
+	//            for (String key : customHeaders.keySet()) {
+	//                if (key == null) continue;
+	//                
+	//                String lowerKey = key.toLowerCase();
+	//                // Filter out transport headers to prevent protocol clashing or manual payload length errors
+	//                if (lowerKey.equals("host") || 
+	//                    lowerKey.equals("content-length") || 
+	//                    lowerKey.equals("connection") || 
+	//                    lowerKey.equals("accept-encoding")) {
+	//                    continue;
+	//                }
+	//                conn.setRequestProperty(key, customHeaders.getString(key));
+	//            }
+			java.util.Iterator<String> keys = customHeaders.keys();
+			while (keys.hasNext()) {
+			    String key = keys.next();
+					if (key == null) continue;
+					
+					String lowerKey = key.toLowerCase();
+					// Filter out transport headers to prevent protocol clashing or manual payload length errors
+					if (lowerKey.equals("host") || 
+					    lowerKey.equals("content-length") || 
+					    lowerKey.equals("connection") || 
+					    lowerKey.equals("accept-encoding")) {
+					    continue;
+					}
+					conn.setRequestProperty(key, customHeaders.getString(key));
+
+			}
+
+		}
+
+		// 5. Extract and cleanly stream the isolated text body downstream
+		if (innerRequest.has("body") && ("POST".equals(method) || "PUT".equals(method))) {
+		    String cleanDownstreamBody = innerRequest.getString("body");
+		    byte[] rawPayloadBytes = cleanDownstreamBody.getBytes(StandardCharsets.UTF_8);
+		    
+		    if (rawPayloadBytes.length > 0) {
+			conn.setDoOutput(true);
+			try (java.io.OutputStream os = conn.getOutputStream()) {
+			    os.write(rawPayloadBytes);
+			}
+		    }
+		}
+
+		// 6. Connect and process downstream server reaction
+		int responseCode = conn.getResponseCode();
+		JSONObject responseHeaders = new JSONObject();
+		for (java.util.Map.Entry<String, java.util.List<String>> entries : conn.getHeaderFields().entrySet()) {
+		    if (entries.getKey() != null && !entries.getValue().isEmpty()) {
+			responseHeaders.put(entries.getKey(), entries.getValue().get(0));
+		    }
+		}
+
+		java.io.InputStream is = (responseCode >= 200 && responseCode < 400) ? conn.getInputStream() : conn.getErrorStream();
+		byte[] responseBytes = new byte[0];
+		if (is != null) {
+		    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+		    byte[] buffer = new byte[4096];
+		    int length;
+		    while ((length = is.read(buffer)) != -1) {
+			bos.write(buffer, 0, length);
+		    }
+		    responseBytes = bos.toByteArray();
+		    is.close();
+		}
+
+		// 7. Enclose raw target payload output inside a wrapper returned back to the front-end fetch client
+		JSONObject wrapperResult = new JSONObject();
+		wrapperResult.put("status", responseCode);
+		wrapperResult.put("headers", responseHeaders);
+		wrapperResult.put("body", new String(responseBytes, StandardCharsets.UTF_8));
+
+		return ResponseContext.status(200)
+		    .contentType("application/json")
+		    .body(wrapperResult.toString())
+		    .build();
+
+	    } catch (Exception e) {
+		Log.e(TAG, e.toString());
+		return ResponseContext.status(500)
+		    .contentType("application/json")
+		    .body("{\"status\":\"error\",\"message\":\"Native broker envelope routing failed: " + e.getMessage() + "\"}")
+		    .build();
+	    }
+	}
+
 
 
 	@RequestMapping(path="/api/net/download", method="GET")
