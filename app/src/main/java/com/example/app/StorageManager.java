@@ -336,9 +336,9 @@ public class StorageManager {
         return "/error.html";
     }
 
-    public void syncSandboxToExternal() {//todo:temporary wrapper, remove later
-        Log.w(TAG, " -> Legacy syncSandboxToExternal() wrapper invoked. Redirecting to migrateSandboxToPublic().");
-        migrateSandboxToPublic();
-    }
+//    public void syncSandboxToExternal() {//todo:temporary wrapper, remove later
+//        Log.w(TAG, " -> Legacy syncSandboxToExternal() wrapper invoked. Redirecting to migrateSandboxToPublic().");
+//        migrateSandboxToPublic();
+//    }
 }
 
