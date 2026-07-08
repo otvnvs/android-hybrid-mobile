@@ -1,3 +1,4 @@
+
 package com.example.app.services.maintenance;
 import android.os.Environment;
 import android.util.Log;
@@ -146,24 +147,10 @@ public class NetController {
 		// 4. Extract and forward the target headers requested by the inner metadata block
 		if (innerRequest.has("headers")) {
 		    JSONObject customHeaders = innerRequest.getJSONObject("headers");
-	//            for (String key : customHeaders.keySet()) {
-	//                if (key == null) continue;
-	//                
-	//                String lowerKey = key.toLowerCase();
-	//                // Filter out transport headers to prevent protocol clashing or manual payload length errors
-	//                if (lowerKey.equals("host") || 
-	//                    lowerKey.equals("content-length") || 
-	//                    lowerKey.equals("connection") || 
-	//                    lowerKey.equals("accept-encoding")) {
-	//                    continue;
-	//                }
-	//                conn.setRequestProperty(key, customHeaders.getString(key));
-	//            }
 			java.util.Iterator<String> keys = customHeaders.keys();
 			while (keys.hasNext()) {
 			    String key = keys.next();
 					if (key == null) continue;
-					
 					String lowerKey = key.toLowerCase();
 					// Filter out transport headers to prevent protocol clashing or manual payload length errors
 					if (lowerKey.equals("host") || 
@@ -194,11 +181,6 @@ public class NetController {
 		// 6. Connect and process downstream server reaction
 		int responseCode = conn.getResponseCode();
 		JSONObject responseHeaders = new JSONObject();
-//		for (java.util.Map.Entry<String, java.util.List<String>> entries : conn.getHeaderFields().entrySet()) {
-//		    if (entries.getKey() != null && !entries.getValue().isEmpty()) {
-//			responseHeaders.put(entries.getKey(), entries.getValue().get(0));
-//		    }
-//		}
 		for (java.util.Map.Entry<String, java.util.List<String>> entries : conn.getHeaderFields().entrySet()) {
 		    String headerKey = entries.getKey();
 		    if (headerKey != null && !entries.getValue().isEmpty()) {
@@ -501,5 +483,3 @@ public class NetController {
         }
     }
 }
-
-
