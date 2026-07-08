@@ -15,6 +15,8 @@ import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 
+import android.os.Environment;
+
 public class PermissionsController {
     private static final String TAG = "PermissionsController";
 
@@ -33,14 +35,29 @@ public class PermissionsController {
             if (requestedPermissions == null || requestedPermissions.length() == 0) {
                 return buildErrorResponse(400, "Missing required array parameter: permissions");
             }
-
             JSONObject checkResults = new JSONObject();
+
             if (context != null) {
-                for (int i = 0; i < requestedPermissions.length(); i++) {
-                    String perm = requestedPermissions.getString(i);
-                    int status = context.checkCallingOrSelfPermission(perm);
-                    checkResults.put(perm, (status == PackageManager.PERMISSION_GRANTED) ? "GRANTED" : "DENIED");
-                }
+//                for (int i = 0; i < requestedPermissions.length(); i++) {
+//                    String perm = requestedPermissions.getString(i);
+//                    int status = context.checkCallingOrSelfPermission(perm);
+//                    checkResults.put(perm, (status == PackageManager.PERMISSION_GRANTED) ? "GRANTED" : "DENIED");
+//                }
+		for (int i = 0; i < requestedPermissions.length(); i++) {
+		    String perm = requestedPermissions.getString(i);
+		    boolean isGranted = false;
+
+		    // ◄ ADAPTIVE OS STATUS MATCHING CHECK
+		    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && 
+			("android.permission.WRITE_EXTERNAL_STORAGE".equals(perm) || "android.permission.READ_EXTERNAL_STORAGE".equals(perm))) {
+			isGranted = Environment.isExternalStorageManager();
+		    } else {
+			isGranted = (context.checkCallingOrSelfPermission(perm) == PackageManager.PERMISSION_GRANTED);
+		    }
+
+		    checkResults.put(perm, isGranted ? "GRANTED" : "DENIED");
+		}
+
                 JSONObject result = new JSONObject();
                 result.put("status", "success");
                 result.put("permissions_matrix", checkResults);
@@ -52,52 +69,119 @@ public class PermissionsController {
         }
     }
 
-    @RequestMapping(path = "/api/permissions/request", method = "POST")
-    public ResponseContext requestPermissions(RequestContext request) {
-        try {
-            Context context = request.getAndroidContext();
-            byte[] bodyBytes = request.getBody();
-            String rawBodyText = (bodyBytes != null && bodyBytes.length > 0) ? new String(bodyBytes, StandardCharsets.UTF_8) : "{}";
-            
-            JSONObject bodyJson = new JSONObject(rawBodyText);
-            JSONArray standardPermissions = bodyJson.optJSONArray("permissions");
+//    @RequestMapping(path = "/api/permissions/request", method = "POST")
+//    public ResponseContext requestPermissions(RequestContext request) {
+//        try {
+//            Context context = request.getAndroidContext();
+//            byte[] bodyBytes = request.getBody();
+//            String rawBodyText = (bodyBytes != null && bodyBytes.length > 0) ? new String(bodyBytes, StandardCharsets.UTF_8) : "{}";
+//            
+//            JSONObject bodyJson = new JSONObject(rawBodyText);
+//            JSONArray standardPermissions = bodyJson.optJSONArray("permissions");
+//
+//            if (standardPermissions == null || standardPermissions.length() == 0) {
+//                return buildErrorResponse(400, "Missing required array parameter: permissions");
+//            }
+//
+//            if (!(context instanceof MainActivity)) {
+//                return buildErrorResponse(422, "Active context must be an instance of MainActivity");
+//            }
+//
+//            final MainActivity activity = (MainActivity) context;
+//            final int totalPerms = standardPermissions.length();
+//            final String[] permissionsArray = new String[totalPerms];
+//            
+//            for (int i = 0; i < totalPerms; i++) {
+//                permissionsArray[i] = standardPermissions.getString(i);
+//            }
+//
+//            // Always trigger asynchronously on the UI thread to prevent layout freezing
+//            activity.runOnUiThread(new Runnable() {
+//                @Override
+//                public void run() {
+//                    if (Build.VERSION.SDK_INT >= 23) {
+//                        activity.requestPermissions(permissionsArray, 2002);
+//                    }
+//                }
+//            });
+//
+//            JSONObject result = new JSONObject();
+//            result.put("status", "success");
+//            result.put("message", "System dialog sequence triggered successfully");
+//            return ResponseContext.status(202).contentType("application/json").body(result.toString()).build();
+//
+//        } catch (Exception e) {
+//            Log.e(TAG, "Permissions request pipeline failure", e);
+//            return buildErrorResponse(500, "System execution failure: " + e.getMessage());
+//        }
+//    }
+@RequestMapping(path="/api/permissions/request", method="POST")
+public ResponseContext requestPermissions(RequestContext request) {
+    try {
+        Context context = request.getAndroidContext();
+        byte[] bodyBytes = request.getBody();
+        String rawBodyText = (bodyBytes != null && bodyBytes.length > 0) ? new String(bodyBytes, StandardCharsets.UTF_8) : "{}";
+        JSONObject bodyJson = new JSONObject(rawBodyText);
+        JSONArray standardPermissions = bodyJson.optJSONArray("permissions");
+        
+        if (standardPermissions == null || standardPermissions.length() == 0) {
+            return buildErrorResponse(400, "Missing required array parameter: permissions");
+        }
+        
+        if (!(context instanceof MainActivity)) {
+            return buildErrorResponse(422, "Active context must be an instance of MainActivity");
+        }
+        
+        final MainActivity activity = (MainActivity) context;
+        final int totalPerms = standardPermissions.length();
+        final String[] permissionsArray = new String[totalPerms];
+        boolean requestsStorage = false;
 
-            if (standardPermissions == null || standardPermissions.length() == 0) {
-                return buildErrorResponse(400, "Missing required array parameter: permissions");
+        for (int i = 0; i < totalPerms; i++) {
+            permissionsArray[i] = standardPermissions.getString(i);
+            if ("android.permission.WRITE_EXTERNAL_STORAGE".equals(permissionsArray[i]) || 
+                "android.permission.READ_EXTERNAL_STORAGE".equals(permissionsArray[i])) {
+                requestsStorage = true;
             }
+        }
 
-            if (!(context instanceof MainActivity)) {
-                return buildErrorResponse(422, "Active context must be an instance of MainActivity");
-            }
+        final boolean finalRequestsStorage = requestsStorage;
 
-            final MainActivity activity = (MainActivity) context;
-            final int totalPerms = standardPermissions.length();
-            final String[] permissionsArray = new String[totalPerms];
-            
-            for (int i = 0; i < totalPerms; i++) {
-                permissionsArray[i] = standardPermissions.getString(i);
-            }
-
-            // Always trigger asynchronously on the UI thread to prevent layout freezing
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
+        activity.runOnUiThread(new Runnable() {
+            @Override 
+            public void run() {
+                // ◄ DYNAMIC COMPATIBILITY GATEWAY: Handle Android 11 (API 30) and above
+                if (finalRequestsStorage && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Log.i("PermissionsController", " -> Redirecting system workspace authorization request to All Files Access Settings menu.");
+                    try {
+                        android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                        android.net.Uri uri = android.net.Uri.fromParts("package", activity.getPackageName(), null);
+                        intent.setData(uri);
+                        activity.startActivity(intent);
+                    } catch (Exception e) {
+                        // Fallback for custom OS flavors if specific settings intent routing fails
+                        android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                        activity.startActivity(intent);
+                    }
+                } else {
+                    // Standard platform popup fallback behavior for legacy API levels or alternative feature permissions (Camera, Microphone)
                     if (Build.VERSION.SDK_INT >= 23) {
                         activity.requestPermissions(permissionsArray, 2002);
                     }
                 }
-            });
+            }
+        });
 
-            JSONObject result = new JSONObject();
-            result.put("status", "success");
-            result.put("message", "System dialog sequence triggered successfully");
-            return ResponseContext.status(202).contentType("application/json").body(result.toString()).build();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Permissions request pipeline failure", e);
-            return buildErrorResponse(500, "System execution failure: " + e.getMessage());
-        }
+        JSONObject result = new JSONObject();
+        result.put("status", "success");
+        result.put("message", "System authorization window sequence successfully triggered.");
+        return ResponseContext.status(202).contentType("application/json").body(result.toString()).build();
+    } catch (Exception e) {
+        Log.e(TAG, "Permissions request pipeline failure", e);
+        return buildErrorResponse(500, "System execution failure: " + e.getMessage());
     }
+}
+
 
     private ResponseContext buildErrorResponse(int code, String message) {
         JSONObject errJson = new JSONObject();
