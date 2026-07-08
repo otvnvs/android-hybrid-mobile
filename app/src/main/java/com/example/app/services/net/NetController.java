@@ -167,9 +167,26 @@ public class NetController {
 		// 6. Connect and process downstream server reaction
 		int responseCode = conn.getResponseCode();
 		JSONObject responseHeaders = new JSONObject();
+//		for (java.util.Map.Entry<String, java.util.List<String>> entries : conn.getHeaderFields().entrySet()) {
+//		    if (entries.getKey() != null && !entries.getValue().isEmpty()) {
+//			responseHeaders.put(entries.getKey(), entries.getValue().get(0));
+//		    }
+//		}
 		for (java.util.Map.Entry<String, java.util.List<String>> entries : conn.getHeaderFields().entrySet()) {
-		    if (entries.getKey() != null && !entries.getValue().isEmpty()) {
-			responseHeaders.put(entries.getKey(), entries.getValue().get(0));
+		    String headerKey = entries.getKey();
+		    if (headerKey != null && !entries.getValue().isEmpty()) {
+			
+			// RECOVERY PATCH: Concatenate multi-value headers (like multiple Set-Cookie properties)
+			StringBuilder combinedValues = new StringBuilder();
+			for (int i = 0; i < entries.getValue().size(); i++) {
+			    combinedValues.append(entries.getValue().get(i));
+			    if (i < entries.getValue().size() - 1) {
+				combinedValues.append(", ");
+			    }
+			}
+			
+			// Force the header key name to lowercase to make it easy for your JS client to read
+			responseHeaders.put(headerKey.toLowerCase(), combinedValues.toString());
 		    }
 		}
 

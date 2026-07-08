@@ -19,6 +19,23 @@ File system operations start at the root of either internal Application static s
     }
     ```
 
+### `POST /api/fs/write`
+*   **Description:** Persists plain UTF-8 encoded text or stringified JSON arguments directly into an explicitly targeted filesystem location on the device.
+*   **Query Parameters:**
+    *   `path` (Required) - The destination file path relative to the root directory (must be URL-encoded).
+*   **Request Body:** The raw content string or payload buffer to commit directly to the file on the device flash sectors.
+*   **Response Status:**
+    *   `200 OK` (Successfully saved to disk)
+    *   `500 Internal Server Error` (File persisting runtime layer failures or write execution drops)
+*   **Response Headers:**
+    *   `Content-Type: application/json` (Outbound Response)
+*   **Response Body:**
+    ```json
+    {
+      "status": "success"
+    }
+    ```
+
 ### `GET /api/fs/read`
 *   **Description:** Extracts the complete uncompressed file contents matching localized extensions (`.txt`, `.json`) into designated buffer outputs.
 *   **Query Parameters:**

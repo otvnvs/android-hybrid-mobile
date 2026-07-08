@@ -132,24 +132,50 @@ checkAndRequestMicrophonePermission();
 
     @SuppressLint("SetJavaScriptEnabled")
     private void configureWebViewSettings(WebView webView) {
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setDomStorageEnabled(true);
-
-    
-    // ADD THESE TWO LINES HERE:
-    settings.setAllowContentAccess(true); // Grants access to content providers
-    settings.setAllowFileAccess(true);    // Ensures internal mapped files read correctly
-    
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-            settings.setAllowUniversalAccessFromFileURLs(true);
-            settings.setAllowFileAccessFromFileURLs(true);
-        }
+//        WebSettings settings = webView.getSettings();
+//        settings.setJavaScriptEnabled(true);
+//        settings.setMediaPlaybackRequiresUserGesture(false);
+//        settings.setDomStorageEnabled(true);
+//
+//    
+//        // ADD THESE TWO LINES HERE:
+//        settings.setAllowContentAccess(true); // Grants access to content providers
+//        settings.setAllowFileAccess(true);    // Ensures internal mapped files read correctly
+//    
+//
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+//            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+//        }
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+//            settings.setAllowUniversalAccessFromFileURLs(true);
+//            settings.setAllowFileAccessFromFileURLs(true);
+//        }
+	    WebSettings settings = webView.getSettings();
+	    
+	    // Core Engine Permissions
+	    settings.setJavaScriptEnabled(true);
+	    settings.setMediaPlaybackRequiresUserGesture(false);
+	    settings.setDomStorageEnabled(true);
+	    settings.setAllowContentAccess(true);
+	    settings.setAllowFileAccess(true);
+	    settings.setDatabaseEnabled(true);
+	    
+	    // Crucial for Android 15 (Samsung) and Android 10 (Zebra) 
+	    // This allows spoofed domains/local file schemes to execute cross-origin requests natively
+	    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+		settings.setAllowUniversalAccessFromFileURLs(true);
+		settings.setAllowFileAccessFromFileURLs(true);
+	    }
+	    
+	    // Force compatibility mode for rendering mixed secure (HTTPS) and non-secure (HTTP) content
+	    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+		settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+	    }
+	    
+	    // Hardware acceleration optimization for older layouts
+	    if (Build.VERSION.SDK_INT <= 30) {
+		webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+	    }
     }
 
     public AppConfig getAppConfig() {
