@@ -794,13 +794,23 @@ public void onPageStarted(android.webkit.WebView view, String url, android.graph
         }
     }
 
-//	@Override
-//	public void onReceivedSslError(WebView view, android.webkit.SslErrorHandler handler, android.net.http.SslError error) {
-//	    Log.w(TAG, "WebView SSL Certificate validation bypass triggered for: " + error.getUrl());
-//	    
-//	    // Force the WebView to proceed regardless of the device architecture or patch era
-//	    handler.proceed(); 
-//	}
+@Override
+public void onReceivedSslError(android.webkit.WebView view, android.webkit.SslErrorHandler handler, android.net.http.SslError error) {
+    String failingUrl = (error != null) ? error.getUrl() : "Unknown URL";
+    
+    // Check if the executing device architecture is legacy (Android 10 / API 30 or lower)
+    if (android.os.Build.VERSION.SDK_INT <= 30) {
+        android.util.Log.w("JS_CONSOLE", "[ZEBRA SSL RECOVERY] Overriding untrusted/expired certificate chain validation drop for path: " + failingUrl);
+        
+        // Force the Chromium engine to ignore the handshake warning and load the data natively
+        handler.proceed(); 
+    } else {
+        // Enforce default, secure behavior for modern hardware layers like your Samsung
+        android.util.Log.d("JS_CONSOLE", "[SSL DEFAULT] Passing standard system security trust rules validation check.");
+        super.onReceivedSslError(view, handler, error);
+    }
+}
+
 
 private void logToRemoteServer(final String message) {
 /*

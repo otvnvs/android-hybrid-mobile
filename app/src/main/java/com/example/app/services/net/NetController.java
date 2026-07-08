@@ -110,6 +110,33 @@ public class NetController {
 
 		java.net.URL url = new java.net.URL(targetUrl);
 		java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+
+
+        // =========================================================================
+        // RECOVERY PATCH: BYPASS SSL CERTIFICATE ERRORS ON LEGACY ZEBRA TERMINAL
+        // =========================================================================
+        if (conn instanceof javax.net.ssl.HttpsURLConnection && android.os.Build.VERSION.SDK_INT <= 30) {
+            Log.w(TAG, "[ZEBRA BROKER SSL RECOVERY] API level <= 30 detected. Overriding certificate chain validation.");
+            
+            javax.net.ssl.HttpsURLConnection sslConn = (javax.net.ssl.HttpsURLConnection) conn;
+            
+            // Build an omnipotent, permissive TrustManager array to ignore frozen store limits
+            javax.net.ssl.TrustManager[] trustAllCerts = new javax.net.ssl.TrustManager[]{
+                new javax.net.ssl.X509TrustManager() {
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+                    public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                    public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                }
+            };
+            
+            // Mount the permissive managers to the active socket context
+            javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            sslConn.setSSLSocketFactory(sc.getSocketFactory());
+            
+            // Bypass Hostname Verification mismatches completely
+            sslConn.setHostnameVerifier((hostname, session) -> true);
+        }
 		
 		conn.setRequestMethod(method);
 		conn.setDoInput(true);
