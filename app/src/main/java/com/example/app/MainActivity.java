@@ -47,28 +47,37 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
         mMaintenanceWebView.setWebViewClient(new ConfigWebViewClient(this, mConfig));
 
         WebChromeClient unifiedChromeClient = new WebChromeClient() {
-            // ◄ NEW IMPLEMENTATION: Overrides default security blocks to grant browser-layer resource access
-            @Override
-            public void onPermissionRequest(final android.webkit.PermissionRequest request) {
-                Log.i(TAG, " -> WebView Browser Engine intercepting standard media resource request pipeline...");
-                
-                // Instruct the activity thread to process the layout authorization request asynchronously
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            String[] requestedResources = request.getResources();
-                            Log.d(TAG, " -> Inner Web Components requesting access to: " + java.util.Arrays.toString(requestedResources));
-                            
-                            // ◄ THE BRIDGING WIN: Grant the browser engine immediate clearance!
-                            // Since our JS loop already forces the true Native OS system prompts first,
-                            // we can safely grant this inner request immediately here.
-                            request.grant(requestedResources);
-                            Log.i(TAG, " -> Success: Browser-layer media resource permission stream granted successfully.");
-                        }
-                    }
-                });
-            }
+//            // ◄ NEW IMPLEMENTATION: Overrides default security blocks to grant browser-layer resource access
+//            @Override
+//            public void onPermissionRequest(final android.webkit.PermissionRequest request) {
+//                Log.i(TAG, " -> WebView Browser Engine intercepting standard media resource request pipeline...");
+//                
+//                // Instruct the activity thread to process the layout authorization request asynchronously
+//                runOnUiThread(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+//                            String[] requestedResources = request.getResources();
+//                            Log.d(TAG, " -> Inner Web Components requesting access to: " + java.util.Arrays.toString(requestedResources));
+//                            
+//                            // ◄ THE BRIDGING WIN: Grant the browser engine immediate clearance!
+//                            // Since our JS loop already forces the true Native OS system prompts first,
+//                            // we can safely grant this inner request immediately here.
+//                            request.grant(requestedResources);
+//                            Log.i(TAG, " -> Success: Browser-layer media resource permission stream granted successfully.");
+//                        }
+//                    }
+//                });
+//            }
+	    // zebra fix for lockups on lazy permission requests
+	    @Override 
+	    public void onPermissionRequest(final android.webkit.PermissionRequest request) {
+		Log.i(TAG, " -> Web Engine intercepting camera hardware pipeline request...");
+		// Fast-track grant directly to prevent UI threads from locking up on older Chromium baselines
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+		    request.grant(request.getResources());
+		}
+	    }
             @Override 
             public boolean onConsoleMessage(android.webkit.ConsoleMessage consoleMessage) {
                 String formattedMessage = String.format("[%s] Line %d of %s: %s",
