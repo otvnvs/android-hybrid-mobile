@@ -1,5 +1,6 @@
-
 package com.example.app.services.maintenance;
+
+import android.content.Context;
 import android.os.Environment;
 import android.util.Log;
 import com.example.app.MainActivity;
@@ -30,26 +31,49 @@ public class NetController {
     }
 
     // Set a root storage sandbox folder inside Documents
-    private File getStorageRoot() {
-        //return new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "AppSandbox");
-        return Environment.getExternalStorageDirectory();
+//    private File getStorageRoot() {
+//        //return new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "AppSandbox");
+//        return Environment.getExternalStorageDirectory();
+//    }
+    /**
+     * ◄ DYNAMIC STORAGE STRATEGY ROUTER
+     * Dynamically anchors the file download path root based on your active panel configurations.
+     */
+    private File getStorageRoot(RequestContext request) {
+        AppConfig config = request.getAppConfig();
+        Context context = request.getAndroidContext();
+        if (config != null && config.isPublicWorkspaceEnabled()) {
+            return Environment.getExternalStorageDirectory(); // /storage/emulated/0
+        } else {
+            return context.getFilesDir(); // /data/user/0/com.example.app/files
+        }
     }
 
     /**
      * Helper to resolve path inputs while preventing path traversal attacks
      */
-    private File resolveSafeFile(String relativePath) throws IOException {
-        File root = getStorageRoot();
-        if (!root.exists()) root.mkdirs();
+//    private File resolveSafeFile(String relativePath) throws IOException {
+//        File root = getStorageRoot();
+//        if (!root.exists()) root.mkdirs();
+//        if (relativePath == null || relativePath.isEmpty()) return root;
+//        
+//        File target = new File(root, relativePath);
+//        if (!target.getCanonicalPath().startsWith(root.getCanonicalPath())) {
+//            throw new SecurityException("Directory traversal attack detected!");
+//        }
+//        return target;
+//    }
+    private File resolveSafeFile(RequestContext request, String relativePath) throws IOException {
+        File root = getStorageRoot(request);
         if (relativePath == null || relativePath.isEmpty()) return root;
         
         File target = new File(root, relativePath);
+        // Canonical guardrail to check for directory traversal path manipulation exploits
         if (!target.getCanonicalPath().startsWith(root.getCanonicalPath())) {
-            throw new SecurityException("Directory traversal attack detected!");
+            throw new SecurityException("Directory traversal validation escape attempt blocked cleanly.");
         }
         return target;
     }
-
 
 
     // =========================================================================
@@ -234,138 +258,238 @@ public class NetController {
 
 
 
-	@RequestMapping(path="/api/net/download", method="GET")
-	public ResponseContext downloadFileRemote(RequestContext request) {
-	    Log.d(TAG, "public ResponseContext downloadFileRemote(RequestContext request):begin");
-	    try {
-		String sourceUrl = request.getQueryParam("url");
-		String targetPath = request.getQueryParam("path");
+//	@RequestMapping(path="/api/net/download", method="GET")
+//	public ResponseContext downloadFileRemote(RequestContext request) {
+//	    Log.d(TAG, "public ResponseContext downloadFileRemote(RequestContext request):begin");
+//	    try {
+//		String sourceUrl = request.getQueryParam("url");
+//		String targetPath = request.getQueryParam("path");
+//
+//		Log.d(TAG, "Initial Target Request -> URL: " + sourceUrl + " | Path: " + targetPath);
+//
+//		if (sourceUrl == null || sourceUrl.isEmpty() || targetPath == null || targetPath.isEmpty()) {
+//		    return buildErrorResponse(400, "Bad Request: Missing parameters 'url' or 'path'.");
+//		}
+//
+//		File targetFile = resolveSafeFile(targetPath);
+//		File parentDir = targetFile.getParentFile();
+//		if (parentDir != null && !parentDir.exists()) {
+//		    parentDir.mkdirs();
+//		}
+//
+//		java.net.HttpURLConnection conn = null;
+//		int responseCode = -1;
+//		int redirectCount = 0;
+//		final int MAX_REDIRECTS = 5;
+//
+//		// Explicitly monitor redirection protocol routing changes
+//		while (redirectCount < MAX_REDIRECTS) {
+//		    Log.d(TAG, "Pipeline connecting to step [" + redirectCount + "]: " + sourceUrl);
+//		    
+//		    java.net.URL url = new java.net.URL(sourceUrl);
+//		    conn = (java.net.HttpURLConnection) url.openConnection();
+//		    conn.setRequestMethod("GET");
+//		    
+//		    // Disable default follower to handle protocol-crossing domains manually
+//		    conn.setInstanceFollowRedirects(false); 
+//		    conn.setConnectTimeout(15000);
+//		    conn.setReadTimeout(15000);
+//
+//		    // Crucial browser string layout to bypass GitHub firewalls
+//		    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+//
+//		    // ONLY apply special authorization or custom request parameters on step 0 (GitHub)
+//		    // AWS S3 bucket endpoints will throw a signature mismatch if these are present
+//		    if (redirectCount == 0) {
+//			conn.setRequestProperty("Accept", "application/vnd.github+json");
+//		    }
+//
+//		    responseCode = conn.getResponseCode();
+//		    Log.d(TAG, "Server responded to step [" + redirectCount + "] with code: HTTP " + responseCode);
+//
+//		    // Capture Redirection Status Blocks (301, 302, 303, 307, 308)
+//		    if (responseCode == 301 || responseCode == 302 || responseCode == 303 
+//			|| responseCode == 307 || responseCode == 308) {
+//			
+//			String locationHeader = conn.getHeaderField("Location");
+//			Log.d(TAG, "Intercepted location redirect target: " + locationHeader);
+//			
+//			if (locationHeader == null || locationHeader.isEmpty()) {
+//			    throw new IOException("Redirect header location string returned empty data chunks.");
+//			}
+//
+//			// Deal with relative paths safely if the host is dropped
+//			if (locationHeader.startsWith("/")) {
+//			    sourceUrl = url.getProtocol() + "://" + url.getHost() + locationHeader;
+//			} else {
+//			    sourceUrl = locationHeader;
+//			}
+//
+//			redirectCount++;
+//			conn.disconnect();
+//			continue; // Fire next connection hop cleanly
+//		    }
+//		    break; // Clear connection profile target found
+//		}
+//
+//		if (responseCode < 200 || responseCode >= 300) {
+//		    Log.e(TAG, "Download terminated with final structural error code: HTTP " + responseCode);
+//		    return buildErrorResponse(responseCode, "Remote server returned failure code: " + responseCode);
+//		}
+//
+//		// Verify the content type coming back from the server isn't text/html
+//		String contentType = conn.getContentType();
+//		Log.d(TAG, "Verified payload content envelope type: " + contentType);
+//		
+//		if (contentType != null && contentType.contains("text/html")) {
+//		    Log.w(TAG, "Warning: Server is returning text/html content instead of raw binary application data streams!");
+//		}
+//
+//		// Pipe binary stream exactly as you wrote it
+//		Log.d(TAG, "Streaming high-fidelity file payload binaries straight onto flash block sectors...");
+//		long bytesWrittenTotal = 0;
+//		
+//		try (java.io.InputStream is = conn.getInputStream();
+//		     java.io.FileOutputStream fos = new java.io.FileOutputStream(targetFile)) {
+//
+//		    byte[] buffer = new byte[8192];
+//		    int bytesRead;
+//		    while ((bytesRead = is.read(buffer)) != -1) {
+//			fos.write(buffer, 0, bytesRead);
+//			bytesWrittenTotal += bytesRead;
+//		    }
+//		    Log.d(TAG, "Binary transfer complete. Total raw streaming bytes captured: " + bytesWrittenTotal);
+//		} finally {
+//		    if (conn != null) conn.disconnect();
+//		}
+//
+//		if (targetPath.contains("Download")) {
+//		    android.media.MediaScannerConnection.scanFile(
+//			request.getAndroidContext(),
+//			new String[]{targetFile.getAbsolutePath()},
+//			null,
+//			null
+//		    );
+//		}
+//
+//		JSONObject result = new JSONObject();
+//		result.put("status", "success");
+//		result.put("message", "Resource downloaded successfully via native pipeline.");
+//		result.put("local_path", targetPath);
+//		result.put("file_size_bytes", targetFile.length());
+//
+//		return ResponseContext.status(200)
+//			.contentType("application/json")
+//			.body(result.toString())
+//			.build();
+//
+//	    } catch (SecurityException se) {
+//		return buildErrorResponse(403, "Directory traversal safety violation: " + se.getMessage());
+//	    } catch (Exception e) {
+//		return buildErrorResponse(500, "Native download executor pipeline failed: " + e.getMessage());
+//	    }
+//	}
 
-		Log.d(TAG, "Initial Target Request -> URL: " + sourceUrl + " | Path: " + targetPath);
+    @RequestMapping(path="/api/net/download", method="GET")
+    public ResponseContext downloadFileRemote(RequestContext request) {
+        Log.d(TAG, "public ResponseContext downloadFileRemote(RequestContext request):begin");
+        try {
+            String sourceUrl = request.getQueryParam("url");
+            String targetPath = request.getQueryParam("path");
+            Log.d(TAG, "Initial Target Request -> URL: " + sourceUrl + " | Path: " + targetPath);
+            
+            if (sourceUrl == null || sourceUrl.isEmpty() || targetPath == null || targetPath.isEmpty()) {
+                return buildErrorResponse(400, "Bad Request: Missing parameters 'url' or 'path'.");
+            }
 
-		if (sourceUrl == null || sourceUrl.isEmpty() || targetPath == null || targetPath.isEmpty()) {
-		    return buildErrorResponse(400, "Bad Request: Missing parameters 'url' or 'path'.");
-		}
+            // ◄ ALIGNMENT FIX: Resolved path parameter safely using our adaptive context router helper
+            File targetFile = resolveSafeFile(request, targetPath);
+            File parentDir = targetFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                parentDir.mkdirs();
+            }
 
-		File targetFile = resolveSafeFile(targetPath);
-		File parentDir = targetFile.getParentFile();
-		if (parentDir != null && !parentDir.exists()) {
-		    parentDir.mkdirs();
-		}
+            java.net.HttpURLConnection conn = null;
+            int responseCode = -1;
+            int redirectCount = 0;
+            final int MAX_REDIRECTS = 5;
 
-		java.net.HttpURLConnection conn = null;
-		int responseCode = -1;
-		int redirectCount = 0;
-		final int MAX_REDIRECTS = 5;
+            while (redirectCount < MAX_REDIRECTS) {
+                Log.d(TAG, "Pipeline connecting to step [" + redirectCount + "]: " + sourceUrl);
+                java.net.URL url = new java.net.URL(sourceUrl);
+                conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+                
+                if (redirectCount == 0) {
+                    conn.setRequestProperty("Accept", "application/vnd.github+json");
+                }
+                
+                responseCode = conn.getResponseCode();
+                Log.d(TAG, "Server responded to step [" + redirectCount + "] with code: HTTP " + responseCode);
+                
+                if (responseCode == 301 || responseCode == 302 || responseCode == 303 || responseCode == 307 || responseCode == 308) {
+                    String locationHeader = conn.getHeaderField("Location");
+                    Log.d(TAG, "Intercepted location redirect target: " + locationHeader);
+                    if (locationHeader == null || locationHeader.isEmpty()) {
+                        throw new IOException("Redirect header location string returned empty data chunks.");
+                    }
+                    if (locationHeader.startsWith("/")) {
+                        sourceUrl = url.getProtocol() + "://" + url.getHost() + locationHeader;
+                    } else {
+                        sourceUrl = locationHeader;
+                    }
+                    redirectCount++;
+                    conn.disconnect();
+                    continue;
+                }
+                break;
+            }
 
-		// Explicitly monitor redirection protocol routing changes
-		while (redirectCount < MAX_REDIRECTS) {
-		    Log.d(TAG, "Pipeline connecting to step [" + redirectCount + "]: " + sourceUrl);
-		    
-		    java.net.URL url = new java.net.URL(sourceUrl);
-		    conn = (java.net.HttpURLConnection) url.openConnection();
-		    conn.setRequestMethod("GET");
-		    
-		    // Disable default follower to handle protocol-crossing domains manually
-		    conn.setInstanceFollowRedirects(false); 
-		    conn.setConnectTimeout(15000);
-		    conn.setReadTimeout(15000);
+            if (responseCode < 200 || responseCode >= 300) {
+                Log.e(TAG, "Download terminated with final structural error code: HTTP " + responseCode);
+                return buildErrorResponse(responseCode, "Remote server returned failure code: " + responseCode);
+            }
 
-		    // Crucial browser string layout to bypass GitHub firewalls
-		    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+            String contentType = conn.getContentType();
+            Log.d(TAG, "Verified payload content envelope type: " + contentType);
+            
+            Log.d(TAG, "Streaming high-fidelity file payload binaries straight onto flash block sectors...");
+            long bytesWrittenTotal = 0;
+            
+            try (java.io.InputStream is = conn.getInputStream();
+                 java.io.FileOutputStream fos = new java.io.FileOutputStream(targetFile)) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    fos.write(buffer, 0, bytesRead);
+                    bytesWrittenTotal += bytesRead;
+                }
+                Log.d(TAG, "Binary transfer complete. Total raw streaming bytes captured: " + bytesWrittenTotal);
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
 
-		    // ONLY apply special authorization or custom request parameters on step 0 (GitHub)
-		    // AWS S3 bucket endpoints will throw a signature mismatch if these are present
-		    if (redirectCount == 0) {
-			conn.setRequestProperty("Accept", "application/vnd.github+json");
-		    }
+            if (targetPath.contains("Download")) {
+                android.media.MediaScannerConnection.scanFile(request.getAndroidContext(), new String[]{targetFile.getAbsolutePath()}, null, null);
+            }
 
-		    responseCode = conn.getResponseCode();
-		    Log.d(TAG, "Server responded to step [" + redirectCount + "] with code: HTTP " + responseCode);
-
-		    // Capture Redirection Status Blocks (301, 302, 303, 307, 308)
-		    if (responseCode == 301 || responseCode == 302 || responseCode == 303 
-			|| responseCode == 307 || responseCode == 308) {
-			
-			String locationHeader = conn.getHeaderField("Location");
-			Log.d(TAG, "Intercepted location redirect target: " + locationHeader);
-			
-			if (locationHeader == null || locationHeader.isEmpty()) {
-			    throw new IOException("Redirect header location string returned empty data chunks.");
-			}
-
-			// Deal with relative paths safely if the host is dropped
-			if (locationHeader.startsWith("/")) {
-			    sourceUrl = url.getProtocol() + "://" + url.getHost() + locationHeader;
-			} else {
-			    sourceUrl = locationHeader;
-			}
-
-			redirectCount++;
-			conn.disconnect();
-			continue; // Fire next connection hop cleanly
-		    }
-		    break; // Clear connection profile target found
-		}
-
-		if (responseCode < 200 || responseCode >= 300) {
-		    Log.e(TAG, "Download terminated with final structural error code: HTTP " + responseCode);
-		    return buildErrorResponse(responseCode, "Remote server returned failure code: " + responseCode);
-		}
-
-		// Verify the content type coming back from the server isn't text/html
-		String contentType = conn.getContentType();
-		Log.d(TAG, "Verified payload content envelope type: " + contentType);
-		
-		if (contentType != null && contentType.contains("text/html")) {
-		    Log.w(TAG, "Warning: Server is returning text/html content instead of raw binary application data streams!");
-		}
-
-		// Pipe binary stream exactly as you wrote it
-		Log.d(TAG, "Streaming high-fidelity file payload binaries straight onto flash block sectors...");
-		long bytesWrittenTotal = 0;
-		
-		try (java.io.InputStream is = conn.getInputStream();
-		     java.io.FileOutputStream fos = new java.io.FileOutputStream(targetFile)) {
-
-		    byte[] buffer = new byte[8192];
-		    int bytesRead;
-		    while ((bytesRead = is.read(buffer)) != -1) {
-			fos.write(buffer, 0, bytesRead);
-			bytesWrittenTotal += bytesRead;
-		    }
-		    Log.d(TAG, "Binary transfer complete. Total raw streaming bytes captured: " + bytesWrittenTotal);
-		} finally {
-		    if (conn != null) conn.disconnect();
-		}
-
-		if (targetPath.contains("Download")) {
-		    android.media.MediaScannerConnection.scanFile(
-			request.getAndroidContext(),
-			new String[]{targetFile.getAbsolutePath()},
-			null,
-			null
-		    );
-		}
-
-		JSONObject result = new JSONObject();
-		result.put("status", "success");
-		result.put("message", "Resource downloaded successfully via native pipeline.");
-		result.put("local_path", targetPath);
-		result.put("file_size_bytes", targetFile.length());
-
-		return ResponseContext.status(200)
-			.contentType("application/json")
-			.body(result.toString())
-			.build();
-
-	    } catch (SecurityException se) {
-		return buildErrorResponse(403, "Directory traversal safety violation: " + se.getMessage());
-	    } catch (Exception e) {
-		return buildErrorResponse(500, "Native download executor pipeline failed: " + e.getMessage());
-	    }
-	}
-
+            JSONObject result = new JSONObject();
+            result.put("status", "success");
+            result.put("message", "Resource downloaded successfully via native pipeline.");
+            result.put("local_path", targetPath);
+            result.put("file_size_bytes", targetFile.length());
+            return ResponseContext.status(200).contentType("application/json").body(result.toString()).build();
+            
+        } catch (SecurityException se) {
+            return buildErrorResponse(403, "Directory traversal safety violation: " + se.getMessage());
+        } catch (Exception e) {
+            return buildErrorResponse(500, "Native download executor pipeline failed: " + e.getMessage());
+        }
+    }
 
     // =========================================================================
     // HELPERS

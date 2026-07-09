@@ -166,7 +166,8 @@ public ResponseContext requestPermissions(RequestContext request) {
                 } else {
                     // Standard platform popup fallback behavior for legacy API levels or alternative feature permissions (Camera, Microphone)
                     if (Build.VERSION.SDK_INT >= 23) {
-                        activity.requestPermissions(permissionsArray, 2002);
+                        //activity.requestPermissions(permissionsArray, 2002);
+                        activity.requestPermissions(permissionsArray, 9825);
                     }
                 }
             }
