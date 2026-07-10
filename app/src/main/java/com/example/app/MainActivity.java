@@ -13,7 +13,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 public class MainActivity extends Activity implements SecretTriggerDetector.OnTriggerListener {
-    private static final String TAG = "JAVA_MainActivity";
+    private static final String TAG = "JS_CONSOLE_JAVA_MainActivity";
     private WebView mWebView;
     private WebView mMaintenanceWebView;
     private AppConfig mConfig;
@@ -111,12 +111,17 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
             settings.setAllowUniversalAccessFromFileURLs(true);
             settings.setAllowFileAccessFromFileURLs(true);
         }
+        //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        //    settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        //}
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+            // Mode 2 explicitly allows secure origins to stream insecure local frames
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
         if (Build.VERSION.SDK_INT <= 30) {
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         }
+
     }
 
     public AppConfig getAppConfig() {
@@ -191,4 +196,3 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
         }
     }
 }
-

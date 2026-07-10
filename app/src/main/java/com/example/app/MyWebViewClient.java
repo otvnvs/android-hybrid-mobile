@@ -57,45 +57,102 @@ class MyWebViewClient extends WebViewClient {
         return Uri.parse(mConfig.getVirtualHost()).getHost();
     }
 
-    @Override 
-    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-        Uri uri = request.getUrl();
-        String targetHost = uri.getHost();
-        String rawVirtualHost = getRawVirtualHost();
+//    @Override 
+//    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+//        Uri uri = request.getUrl();
+//        String targetHost = uri.getHost();
+//        String rawVirtualHost = getRawVirtualHost();
+//        
+//        if (targetHost != null && targetHost.equals(rawVirtualHost)) {
+//            String path = uri.getPath();
+//            if (path != null) {
+//                String method = request.getMethod();
+//                WebResourceResponse serviceResponse = mServiceRegistry.dispatch(mContext, mConfig, request, path, method);
+//                if (serviceResponse != null) {
+//                    return serviceResponse;
+//                }
+//                
+//                if (path.startsWith("/")) {
+//                    path = path.substring(1);
+//                }
+//                if (path.isEmpty()) {
+//                    path = "index.html";
+//                }
+//                
+//                try {
+//                    InputStream targetStream = resolveAssetStream(path);
+//                    String mimeType = getMimeType(path);
+//                    return new WebResourceResponse(mimeType, "UTF-8", targetStream);
+//                } catch (IOException e) {
+//                    Log.e(TAG, "Exception loading asset file path: " + e.toString());
+//                    String errorHtml = "<html><body style='font-family:sans-serif;padding:20px;text-align:center;'>"
+//                            + "<h2>Application Error</h2>"
+//                            + "<p>The requested application resource could not be loaded local-side.</p>"
+//                            + "</body></html>";
+//                    InputStream fallbackStream = new ByteArrayInputStream(errorHtml.getBytes(StandardCharsets.UTF_8));
+//                    return new WebResourceResponse("text/html", "UTF-8", fallbackStream);
+//                }
+//            }
+//        }
+//        return super.shouldInterceptRequest(view, request);
+//    }
+@Override 
+public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+    Uri uri = request.getUrl();
+    String path = uri.getPath();
+    
+    // =========================================================================
+    // GLOBAL INTERCEPT RULE FOR API MOCKS
+    // Catch any request targeted at /api/ across ANY loaded domain or IP host
+    // =========================================================================
+    if (path != null && path.startsWith("/api/")) {
+        String method = request.getMethod();
         
-        if (targetHost != null && targetHost.equals(rawVirtualHost)) {
-            String path = uri.getPath();
-            if (path != null) {
-                String method = request.getMethod();
-                WebResourceResponse serviceResponse = mServiceRegistry.dispatch(mContext, mConfig, request, path, method);
-                if (serviceResponse != null) {
-                    return serviceResponse;
-                }
-                
-                if (path.startsWith("/")) {
-                    path = path.substring(1);
-                }
-                if (path.isEmpty()) {
-                    path = "index.html";
-                }
-                
-                try {
-                    InputStream targetStream = resolveAssetStream(path);
-                    String mimeType = getMimeType(path);
-                    return new WebResourceResponse(mimeType, "UTF-8", targetStream);
-                } catch (IOException e) {
-                    Log.e(TAG, "Exception loading asset file path: " + e.toString());
-                    String errorHtml = "<html><body style='font-family:sans-serif;padding:20px;text-align:center;'>"
-                            + "<h2>Application Error</h2>"
-                            + "<p>The requested application resource could not be loaded local-side.</p>"
-                            + "</body></html>";
-                    InputStream fallbackStream = new ByteArrayInputStream(errorHtml.getBytes(StandardCharsets.UTF_8));
-                    return new WebResourceResponse("text/html", "UTF-8", fallbackStream);
-                }
+        // Dispatch directly into your simulated native JVM controller environment
+        WebResourceResponse serviceResponse = mServiceRegistry.dispatch(mContext, mConfig, request, path, method);
+        if (serviceResponse != null) {
+            return serviceResponse;
+        }
+        
+        // Fallback error wrapper if a controller wasn't mapped for this path/method combo
+        String errorHtml = "{\"status\":\"error\",\"message\":\"Native API route not found matching this request mapping.\"}";
+        InputStream fallbackStream = new java.io.ByteArrayInputStream(errorHtml.getBytes(StandardCharsets.UTF_8));
+        return new WebResourceResponse("application/json", "UTF-8", fallbackStream);
+    }
+
+    // =========================================================================
+    // LOCAL VIRTUAL HOST ROUTING FOR STATIC ASSETS
+    // Only intercept asset files if the host explicitly matches your config domain
+    // =========================================================================
+    String targetHost = uri.getHost();
+    String rawVirtualHost = getRawVirtualHost();
+    
+    if (targetHost != null && targetHost.equals(rawVirtualHost)) {
+        if (path != null) {
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+            if (path.isEmpty()) {
+                path = "index.html";
+            }
+            try {
+                InputStream targetStream = resolveAssetStream(path);
+                String mimeType = getMimeType(path);
+                return new WebResourceResponse(mimeType, "UTF-8", targetStream);
+            } catch (IOException e) {
+                Log.e(TAG, "Exception loading asset file path: " + e.toString());
+                String errorHtml = "<html><body><h2>Application Error</h2><p>Resource could not be loaded local-side.</p></body></html>";
+                InputStream fallbackStream = new java.io.ByteArrayInputStream(errorHtml.getBytes(StandardCharsets.UTF_8));
+                return new WebResourceResponse("text/html", "UTF-8", fallbackStream);
             }
         }
-        return super.shouldInterceptRequest(view, request);
     }
+
+    // Pass-through everything else (Vite static bundle files, scripts, hmr, stylesheets)
+    // live out to the network or development laptop endpoint cleanly.
+    return super.shouldInterceptRequest(view, request);
+}
+
 
     /**
      * Refactored routing strategy evaluating config flags to provide strict path boundaries.
@@ -151,16 +208,21 @@ class MyWebViewClient extends WebViewClient {
         return handleUrlRouting(view, Uri.parse(url));
     }
 
-    private boolean handleUrlRouting(WebView view, Uri uri) {
-        String host = uri.getHost();
-        String rawVirtualHost = getRawVirtualHost();
-        if (host != null && (host.equals(rawVirtualHost) || host.endsWith("." + rawVirtualHost))) {
-            return false;
-        }
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        view.getContext().startActivity(intent);
-        return true;
-    }
+//    private boolean handleUrlRouting(WebView view, Uri uri) {
+//        String host = uri.getHost();
+//        String rawVirtualHost = getRawVirtualHost();
+//        if (host != null && (host.equals(rawVirtualHost) || host.endsWith("." + rawVirtualHost))) {
+//            return false;
+//        }
+//        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+//        view.getContext().startActivity(intent);
+//        return true;
+//    }
+private boolean handleUrlRouting(WebView view, Uri uri) {
+    // Returning false lets the WebView load ALL websites internally,
+    // exactly like a normal web browser.
+    return false;
+}
 
     @Override 
     public void onReceivedError(WebView webview, WebResourceRequest request, WebResourceError error) {

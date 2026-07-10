@@ -110,6 +110,97 @@ public class WebViewController {
         }
     }
 
+	@RequestMapping(path="/api/webview/navigate", method="POST")
+	public ResponseContext navigateMainWebViewReflectiveFix(RequestContext request) {
+	    try {
+		Log.i(TAG, " -> REST API [POST]: Starting explicit view-ID identification pass.");
+		
+		// 1. Resolve and validate activity context
+		android.content.Context appCtx = request.getAndroidContext();
+		if (!(appCtx instanceof com.example.app.MainActivity)) {
+		    return ResponseContext.status(500)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Context tracking configuration mismatch.\"}")
+			.build();
+		}
+		final com.example.app.MainActivity activity = (com.example.app.MainActivity) appCtx;
+
+		// 2. Parse out the target url query parameter
+		final String targetUrl = request.getQueryParam("url");
+		if (targetUrl == null || targetUrl.trim().isEmpty()) {
+		    return ResponseContext.status(400)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Missing mandatory 'url' tracking parameter.\"}")
+			.build();
+		}
+
+		// 3. Reflectively loop through ALL declared fields on MainActivity to look for the exact View ID
+		android.webkit.WebView identifiedMainWebView = null;
+		java.lang.reflect.Field[] fields = com.example.app.MainActivity.class.getDeclaredFields();
+		
+		// Target Resource ID we need to find (corresponds to R.id.activity_main_webview)
+		int targetMainViewId = activity.getResources().getIdentifier("activity_main_webview", "id", activity.getPackageName());
+
+		for (java.lang.reflect.Field field : fields) {
+		    if (android.webkit.WebView.class.isAssignableFrom(field.getType())) {
+			field.setAccessible(true);
+			android.webkit.WebView wvInstance = (android.webkit.WebView) field.get(activity);
+			
+			// If the instance exists, check its native Android runtime view ID
+			if (wvInstance != null && wvInstance.getId() == targetMainViewId) {
+			    identifiedMainWebView = wvInstance;
+			    Log.i(TAG, " -> Success: Explicitly located Main WebView field named: " + field.getName());
+			    break;
+			}
+		    }
+		}
+
+		// 4. Fallback: If view lookups fail due to uninitialized layouts, try the direct field name pointer
+		if (identifiedMainWebView == null) {
+		    Log.w(TAG, " -> ID lookup yielded no results. Dropping back to strict field string identifier fallback.");
+		    java.lang.reflect.Field fallbackField = com.example.app.MainActivity.class.getDeclaredField("mWebView");
+		    fallbackField.setAccessible(true);
+		    identifiedMainWebView = (android.webkit.WebView) fallbackField.get(activity);
+		}
+
+		if (identifiedMainWebView == null) {
+		    return ResponseContext.status(500)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Unable to safely isolate the primary production WebView instance container.\"}")
+			.build();
+		}
+
+		// 5. Dispatch navigation instruction directly to the verified primary viewport
+		final android.webkit.WebView finalMainWebView = identifiedMainWebView;
+		activity.runOnUiThread(new Runnable() {
+		    @Override
+		    public void run() {
+			try {
+			    Log.i(TAG, " -> Routing instruction sent directly to Main WebView container: " + targetUrl);
+			    finalMainWebView.loadUrl(targetUrl);
+			} catch (Exception e) {
+			    Log.e(TAG, "UI thread navigation dispatch crashed reflectively", e);
+			}
+		    }
+		});
+
+		// 6. Return response confirmation back to Vue layer
+		org.json.JSONObject payload = new org.json.JSONObject();
+		payload.put("status", "success");
+		payload.put("navigated_main_to", targetUrl);
+		
+		return ResponseContext.status(200)
+		    .contentType("application/json")
+		    .header("X-Server-Response-Engine", "Android-Native-JVM")
+		    .body(payload.toString())
+		    .build();
+
+	    } catch (Exception e) {
+		Log.e(TAG, "Main WebView remote control filter runtime failure", e);
+		return buildErrorResponse(500, "Navigation pipeline execution error: " + e.getMessage());
+	    }
+	}
+
     private long calculateDirectorySize(java.io.File directory) {
         long length = 0;
         java.io.File[] files = directory.listFiles();

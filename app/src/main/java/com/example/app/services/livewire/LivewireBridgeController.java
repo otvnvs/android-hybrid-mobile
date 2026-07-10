@@ -1,184 +1,142 @@
 package com.example.app.services.livewire;
 
-import android.net.Uri;
 import android.util.Log;
 import android.webkit.WebView;
-import com.example.app.services.RequestMapping;
-import com.example.app.services.RequestContext;
-import com.example.app.services.ResponseContext;
 import com.example.app.services.WebSocketMapping;
 import com.example.app.services.WebSocketOnClose;
 import com.example.app.services.WebSocketOnOpen;
 import com.example.app.services.WebSocketSession;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.util.Map;
+import java.io.PrintWriter;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class LivewireBridgeController {
-    private static final String TAG = "JAVA_LivewireBridge";
+    private static final String TAG = "JS_CONSOLE_JAVA_LivewireBridge";
 
-    // Track active long-running laptop TCP background threads by target IP key
-    private final ConcurrentHashMap<String, LivewireTunnelWorker> activeLaptopTunnels = new ConcurrentHashMap<>();
-    
-    // Track active monitoring WebSockets opened by the WebView front-end
-    private final ConcurrentHashMap<String, WebSocketSession> activeEchoSessions = new ConcurrentHashMap<>();
-    
+    // Maps local WebView WebSocket socketIds to their corresponding long-running laptop TCP tunnel workers
+    private final ConcurrentHashMap<String, LivewireTunnelWorker> activeSessionWorkers = new ConcurrentHashMap<>();
     private final ExecutorService tunnelThreadPool = Executors.newCachedThreadPool();
 
-    // Global reference hook if you choose not to unpack it from request loops
     public static WebView globalWebViewFallbackInstance = null;
 
-    public LivewireBridgeController() {}
-
-    // =========================================================================
-    // 1. THE REST API ENGINE (MANAGEMENT LAYER)
-    // =========================================================================
-
-    @RequestMapping(path = "/api/livewire/connect", method = "POST")
-    public ResponseContext initializeConnection(RequestContext request) {
-        try {
-            String target = request.getQueryParam("target");
-            if (target == null || target.isEmpty()) {
-                return buildJsonResponse(400, "error", "Missing 'target' parameter.");
-            }
-
-            if (activeLaptopTunnels.containsKey(target)) {
-                return buildJsonResponse(200, "status", "Tunnel already active to this target device.");
-            }
-
-            // Target mapping fallback context extractor resolution step
-            WebView webView = extractWebViewFromRequest(request); 
-            if (webView == null) {
-                return buildJsonResponse(500, "error", "Active running target WebView context could not be resolved.");
-            }
-
-            // Launch the background daemon thread to read from websocat on your laptop
-            LivewireTunnelWorker worker = new LivewireTunnelWorker(target, webView);
-            activeLaptopTunnels.put(target, worker);
-            tunnelThreadPool.submit(worker);
-
-            return buildJsonResponse(200, "success", "Background bridge thread successfully initialized to: " + target);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed initializing REST livewire tunnel", e);
-            return buildJsonResponse(500, "error", e.getMessage());
-        }
+    public LivewireBridgeController() {
+        Log.d(TAG, "LivewireBridgeController direct WebSocket engine compiled successfully.");
     }
 
-    @RequestMapping(path = "/api/livewire/connections", method = "GET")
-    public ResponseContext listActiveConnections(RequestContext request) {
-        try {
-            JSONObject root = new JSONObject();
-            root.put("status", "success");
+//    @WebSocketOnOpen(path = "/api/ws/livewire/bridge")
+//    public void onBridgeSocketOpen(WebSocketSession session) {
+//        Log.d(TAG, "📡 Local WebSocket open handshake intercepted for session: " + session.getSocketId());
+//
+//        // Extract the laptop target and connection mode directly using your custom parameter parser
+//        String targetLaptopAddress = session.getQueryParam("target");
+//        String connectionMode = session.getQueryParam("mode");
+//
+//        Log.d(TAG, "📦 Parsed parameters -> target: '" + targetLaptopAddress + "', mode: '" + connectionMode + "'");
+//
+//        if (targetLaptopAddress == null || targetLaptopAddress.isEmpty()) {
+//            sendJsonError(session, "Missing critical laptop 'target' query parameter.");
+//            session.send("{\"event\":\"tunnel_destroyed\"}");
+//            return;
+//        }
+//
+//        WebView webView = globalWebViewFallbackInstance;
+//        if (webView == null) {
+//            Log.e(TAG, "❌ Aborting tunnel: Static global fallback WebView instance is uninitialized.");
+//            sendJsonError(session, "WebView user interface context reference is null on host layout.");
+//            return;
+//        }
+//
+//        try {
+//            boolean isEvaluationReplMode = "repl".equalsIgnoreCase(connectionMode);
+//
+//            // Spawning a clean background thread worker mapped directly to this active WebSocket channel lifecycle
+//            LivewireTunnelWorker worker = new LivewireTunnelWorker(targetLaptopAddress, webView, session, isEvaluationReplMode);
+//            activeSessionWorkers.put(session.getSocketId(), worker);
+//            
+//            Log.d(TAG, "🧵 Dispatching TCP worker loop execution context to background thread pool...");
+//            tunnelThreadPool.submit(worker);
+//
+//        } catch (Exception e) {
+//            Log.e(TAG, "💥 Critical exception during WebSocket session mapping initialization:", e);
+//            sendJsonError(session, "Java engine socket initialization failure: " + e.getMessage());
+//        }
+//    }
 
-            JSONArray tunnels = new JSONArray();
-            for (String target : activeLaptopTunnels.keySet()) {
-                tunnels.put(target);
-            }
-            root.put("active_laptop_tunnels", tunnels);
-
-            JSONArray echoSessions = new JSONArray();
-            for (String socketId : activeEchoSessions.keySet()) {
-                echoSessions.put(socketId);
-            }
-            root.put("active_webview_echo_channels", echoSessions);
-
-            return ResponseContext.status(200).contentType("application/json").body(root.toString()).build();
-        } catch (Exception e) {
-            return buildJsonResponse(500, "error", e.getMessage());
-        }
-    }
-
-    @RequestMapping(path = "/api/livewire/disconnect", method = "POST")
-    public ResponseContext destroyConnection(RequestContext request) {
-        String target = request.getQueryParam("target");
-        if (target == null || target.isEmpty()) {
-            return buildJsonResponse(400, "error", "Missing target parameter.");
-        }
-
-        LivewireTunnelWorker worker = activeLaptopTunnels.remove(target);
-        if (worker != null) {
-            worker.terminate();
-            broadcastToEchos("{\"event\":\"tunnel_destroyed\",\"target\":\"" + target + "\"}");
-            return buildJsonResponse(200, "success", "Tunnel closed completely for: " + target);
-        }
-
-        return buildJsonResponse(404, "error", "No active running background tunnel discovered for key string matching: " + target);
-    }
-    // =========================================================================
-    // 2. THE WEBSOCKET SERVICE (ECHO & EVENT MONITORING LAYER)
-    // =========================================================================
-
-    @WebSocketOnOpen(path = "/api/ws/livewire/echo")
-    public void onEchoConnect(WebSocketSession session) {
-        Log.i(TAG, "WebView connected to live monitoring link: " + session.getSocketId());
-        activeEchoSessions.put(session.getSocketId(), session);
+    @WebSocketMapping(path = "/api/ws/livewire/bridge")
+    public void handleIncomingWebViewTraffic(WebSocketSession session, String rawMessage) {
+        Log.d(TAG, "📥 Inbound traffic frame intercepted from WebView window channel -> " + rawMessage);
         
         try {
-            JSONObject info = new JSONObject();
-            info.put("type", "welcome");
-            info.put("message", "Livewire Echo diagnostics stream active.");
-            info.put("active_tunnels_count", activeLaptopTunnels.size());
-            session.send(info.toString());
-        } catch (Exception ignored) {}
-    }
+            JSONObject incomingPacket = new JSONObject(rawMessage);
+            String packetType = incomingPacket.optString("type");
+            String payloadData = incomingPacket.optString("payload");
 
-    @WebSocketMapping(path = "/api/ws/livewire/echo")
-    public void handleEchoTraffic(WebSocketSession session, String message) {
-        Log.d(TAG, "Echo processing frame payload from client interface: " + message);
-        session.send("{\"type\":\"echo_response\",\"payload\":" + JSONObject.quote(message) + "}");
-    }
+            LivewireTunnelWorker worker = activeSessionWorkers.get(session.getSocketId());
+            if (worker == null) {
+                Log.w(TAG, "⚠️ Received packet but found no matching active background worker cached for session: " + session.getSocketId());
+                return;
+            }
 
-    @WebSocketOnClose(path = "/api/ws/livewire/echo")
-    public void onEchoDisconnect(WebSocketSession session) {
-        Log.i(TAG, "WebView unlinked from live monitoring path: " + session.getSocketId());
-        activeEchoSessions.remove(session.getSocketId());
-    }
+            // Route standard typed user text inputs straight to your laptop netcat view
+            if ("client_message".equals(packetType)) {
+                Log.d(TAG, "➡️ Forwarding text line back to laptop: " + payloadData);
+                worker.writeToLaptop(payloadData);
+            }
+            
+            // Route intercepted global browser console messages back to your laptop netcat view
+            if ("console_bridge".equals(packetType)) {
+                worker.writeToLaptop(payloadData);
+            }
 
-    // =========================================================================
-    // 3. INTERNAL UTILITY HELPERS
-    // =========================================================================
-
-    private void broadcastToEchos(String jsonMessage) {
-        for (WebSocketSession session : activeEchoSessions.values()) {
-            try {
-                session.send(jsonMessage);
-            } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // Fallback: If loose non-JSON text frames flow from frontend, pass them raw to laptop
+            LivewireTunnelWorker worker = activeSessionWorkers.get(session.getSocketId());
+            if (worker != null) {
+                worker.writeToLaptop(rawMessage);
+            }
         }
     }
 
-    private ResponseContext buildJsonResponse(int code, String status, String message) {
-        JSONObject res = new JSONObject();
-        try {
-            res.put("status", status);
-            res.put("message", message);
-        } catch (Exception ignored) {}
-        return ResponseContext.status(code).contentType("application/json").body(res.toString()).build();
+    @WebSocketOnClose(path = "/api/ws/livewire/bridge")
+    public void onBridgeSocketClose(WebSocketSession session) {
+        Log.i(TAG, "🔌 WebView unlinked session closed. Purging background resource pools for ID: " + session.getSocketId());
+        LivewireTunnelWorker worker = activeSessionWorkers.remove(session.getSocketId());
+        if (worker != null) {
+            worker.terminate();
+        }
     }
 
-    private WebView extractWebViewFromRequest(RequestContext request) {
-        // If your framework doesn't bundle a WebView inside RequestContext directly, 
-        // fall back to using the global static registration reference hook.
-        return globalWebViewFallbackInstance; 
+    private void sendJsonError(WebSocketSession session, String errorMsg) {
+        try {
+            JSONObject res = new JSONObject();
+            res.put("event", "tunnel_error");
+            res.put("message", errorMsg);
+            session.send(res.toString());
+        } catch (Exception ignored) {}
     }
     /**
-     * Dedicated line reader tracking streaming traffic allocations from dev laptop.
+     * Long-running background networking runner.
+     * Captures incoming characters from netcat, dynamically selecting text output routing paths.
      */
     private class LivewireTunnelWorker implements Runnable {
         private final String targetUrl;
         private final WebView webViewRef;
+        private final WebSocketSession localWssSession;
+        private final boolean evaluationReplModeActive;
         private volatile boolean running = true;
         private java.net.Socket rawSocket = null;
 
-        public LivewireTunnelWorker(String targetUrl, WebView webViewRef) {
+        public LivewireTunnelWorker(String targetUrl, WebView webViewRef, WebSocketSession wssSession, boolean replMode) {
             this.targetUrl = targetUrl;
             this.webViewRef = webViewRef;
+            this.localWssSession = wssSession;
+            this.evaluationReplModeActive = replMode;
         }
 
         @Override
@@ -189,39 +147,81 @@ public class LivewireBridgeController {
                 String ip = parts[0];
                 int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 8080;
 
-                Log.d(TAG, "[Tunnel Worker] Launching background TCP link to -> " + ip + ":" + port);
+                Log.i(TAG, "🔌 [Background Task] Opening outbound socket link targeting -> " + ip + ":" + port);
                 rawSocket = new java.net.Socket(ip, port);
+                Log.i(TAG, "🚀 [Background Task] Outbound connection established cleanly.");
+
+                InputStreamReader reader = new InputStreamReader(rawSocket.getInputStream(), "UTF-8");
                 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(rawSocket.getInputStream()));
-                broadcastToEchos("{\"event\":\"tunnel_connected\",\"target\":\"" + targetUrl + "\"}");
+                // Confirm connection status back to HTML WebView terminal UI view layout
+                localWssSession.send("{\"event\":\"tunnel_connected\",\"target\":\"" + targetUrl + "\"}");
 
-                String incomingPayload;
-                while (running && (incomingPayload = reader.readLine()) != null) {
-                    final String codeToExecute = incomingPayload;
-                    Log.v(TAG, "[Tunnel Worker] Inbound compilation command streaming in: " + codeToExecute);
+                char[] buffer = new char[4096];
+                int bytesRead;
 
-                    broadcastToEchos("{\"event\":\"executing_payload\",\"bytes\":" + codeToExecute.length() + "}");
+                while (running && (bytesRead = reader.read(buffer)) != -1) {
+                    if (bytesRead == 0) continue;
+
+                    final String incomingPayload = new String(buffer, 0, bytesRead).trim();
+                    if (incomingPayload.isEmpty()) continue;
+
+                    Log.i(TAG, "📥 [TCP Input from Laptop]: '" + incomingPayload + "'");
 
                     if (webViewRef != null) {
                         webViewRef.post(new Runnable() {
                             @Override
                             public void run() {
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
-                                    webViewRef.evaluateJavascript(codeToExecute, value -> {
-                                        broadcastToEchos("{\"event\":\"execution_completed\",\"result\":" + JSONObject.quote(value) + "}");
-                                    });
+                                if (!evaluationReplModeActive) {
+                                    // ECHO MODE: Wrap loose incoming strings into structured tracking telemetry packages
+                                    try {
+                                        JSONObject echoFrame = new JSONObject();
+                                        echoFrame.put("event", "raw_text_received");
+                                        echoFrame.put("payload", incomingPayload);
+                                        localWssSession.send(echoFrame.toString());
+                                    } catch (Exception ignored) {}
                                 } else {
-                                    webViewRef.loadUrl("javascript:" + codeToExecute);
+                                    // REPL MODE: Run raw incoming strings directly as code patches inside the browser engine
+                                    try {
+                                        localWssSession.send("{\"event\":\"executing_payload\",\"bytes\":" + incomingPayload.length() + "}");
+                                    } catch (Exception ignored) {}
+
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+                                        webViewRef.evaluateJavascript(incomingPayload, value -> {
+                                            try {
+                                                JSONObject completeFrame = new JSONObject();
+                                                completeFrame.put("event", "execution_completed");
+                                                completeFrame.put("result", value);
+                                                localWssSession.send(completeFrame.toString());
+                                            } catch (Exception ignored) {}
+                                        });
+                                    } else {
+                                        webViewRef.loadUrl("javascript:" + incomingPayload);
+                                    }
                                 }
                             }
                         });
                     }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error processing tunnel background streaming thread runtime", e);
-                broadcastToEchos("{\"event\":\"tunnel_error\",\"message\":" + JSONObject.quote(e.getMessage()) + "}");
+                Log.e(TAG, "💥 Exception tracking background TCP data receiver thread worker channels:", e);
+                try {
+                    localWssSession.send("{\"event\":\"tunnel_error\",\"message\":\"" + e.getMessage() + "\"}");
+                } catch (Exception ignored) {}
                 terminate();
             }
+        }
+
+        public void writeToLaptop(String message) {
+            tunnelThreadPool.submit(() -> {
+                try {
+                    if (rawSocket != null && !rawSocket.isClosed()) {
+                        PrintWriter out = new PrintWriter(rawSocket.getOutputStream(), true);
+                        out.println(message);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed writing text data stream packet back to laptop:", e);
+                }
+            });
         }
 
         public void terminate() {
@@ -231,9 +231,12 @@ public class LivewireBridgeController {
                     rawSocket.close();
                 }
             } catch (Exception ignored) {}
-            activeLaptopTunnels.remove(targetUrl);
-            Log.d(TAG, "[Tunnel Worker] Background network streaming thread closed down cleanly.");
+            try {
+                localWssSession.send("{\"event\":\"tunnel_destroyed\"}");
+            } catch (Exception ignored) {}
+            Log.d(TAG, "Background networking worker runner gracefully shut down.");
         }
     }
 }
+
 
