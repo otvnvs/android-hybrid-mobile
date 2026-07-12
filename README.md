@@ -37,3 +37,25 @@ The application's runtime boundaries, static asset routing, and secret engineeri
 > * If `config_workspace_folder_name` is left blank, whitespace-only, or omitted entirely from your `strings.xml`, the system automatically defaults to using the unique application package bundle identifier (e.g., `com.example.app`). This guarantees a valid local developer sync directory tree is always securely generated under any environment layout variant.
 > * If `virtual_host` is left blank or omitted entirely, the system automatically defaults to using `localhost` (evaluating to `https://localhost`), safeguarding the embedded viewport pipeline against parsing or uninitialized address faults.
 
+
+
+
+
+````xml
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+    </intent-filter>
+
+    <!-- ─── UPDATED INTERCEPT INTENT FILTER ─── -->
+    <intent-filter android:label="AHM Hybrid Asset Installer">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+
+        <!-- Scheme changed from otv-app to ahm-app -->
+        <data 
+            android:scheme="ahm-app" 
+            android:host="deploy" />
+    </intent-filter>
+```

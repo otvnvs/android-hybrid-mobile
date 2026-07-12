@@ -18,7 +18,7 @@ import java.util.zip.ZipInputStream;
 import android.os.Environment;
 
 public class UpdateManager {
-    private static final String TAG = "JAVA_UpdateManager";
+    private static final String TAG = "JS_CONSOLE_JAVA_UpdateManager";
     private final Context context;
     private final AppConfig config;
     private static volatile String currentStatusMessage = "Idle";
@@ -124,6 +124,82 @@ public class UpdateManager {
         }).start();
     }
 
+
+/**
+ * Overloaded download trigger. Accepts a transient explicit package URL 
+ * from deep-link contexts instead of reading statically from AppConfig parameters.
+ */
+public void startZipDownloadWithCustomUrl(final String customUrlStr, final OnUpdateCompleteListener listener) {
+    Log.i(TAG, "startZipDownloadWithCustomUrl() invoked from native deep link context.");
+    executeZipDownloadWorker(customUrlStr, listener);
+}
+
+
+/**
+ * Main execution worker block containing your core network pipeline streaming layers.
+ */
+private void executeZipDownloadWorker(final String targetUrlStr, final OnUpdateCompleteListener listener) {
+    new Thread(() -> {
+        HttpURLConnection connection = null;
+        InputStream inputStream = null;
+        FileOutputStream outputStream = null;
+        try {
+            if (targetUrlStr == null || targetUrlStr.isEmpty()) {
+                throw new java.io.IOException("Aborting deployment: Target download package path string is empty.");
+            }
+            Log.d(TAG, " -> Connecting natively to deep-link target endpoint: " + targetUrlStr);
+            URL url = new URL(targetUrlStr);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(15000);
+            connection.setRequestMethod("GET");
+
+            // Standard credentials configuration layer mapping checks
+            if (config.useAuthentication()) {
+                String authStr = config.getAuthUsername() + ":" + config.getAuthPassword();
+                String base64Auth = android.util.Base64.encodeToString(authStr.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+                connection.setRequestProperty("Authorization", "Basic " + base64Auth);
+            }
+
+            connection.connect();
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new java.io.IOException("Server responded with invalid error token state: " + responseCode);
+            }
+
+            File tempZipFile = new File(context.getCacheDir(), "remote_deployment_package.zip");
+            if (tempZipFile.exists()) tempZipFile.delete();
+
+            inputStream = new java.io.BufferedInputStream(connection.getInputStream());
+            outputStream = new FileOutputStream(tempZipFile);
+            byte[] dataBuffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(dataBuffer, 0, 4096)) != -1) {
+                outputStream.write(dataBuffer, 0, bytesRead);
+            }
+            outputStream.flush();
+
+            File sandboxDir = new File(context.getFilesDir(), "www");
+            extractZipToSandbox(tempZipFile, sandboxDir);
+            syncSandboxToExternalFolder(sandboxDir);
+            
+            if (tempZipFile.exists()) tempZipFile.delete();
+
+            if (listener != null) {
+                Log.i(TAG, " -> Dynamic deep-link asset replication completed successfully. Dispatching notification signal...");
+                listener.onUpdateFinished();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, " !! CRITICAL DEPLOYMENT EXCEPTION !! -> " + e.getMessage());
+        } finally {
+            try { if (outputStream != null) outputStream.close(); } catch (Exception ignored) {}
+            try { if (inputStream != null) inputStream.close(); } catch (Exception ignored) {}
+            if (connection != null) connection.disconnect();
+        }
+    }).start();
+}
+
+
     private void finaliseUpdateResources(FileOutputStream outputStream, InputStream inputStream, HttpURLConnection connection) {
         try { if (outputStream != null) outputStream.close(); } catch (IOException ignored) {}
         try { if (inputStream != null) inputStream.close(); } catch (IOException ignored) {}
@@ -173,7 +249,7 @@ public class UpdateManager {
                 }
             }
         } else {
-            Log.d(TAG, "    [Copying File] " + source.getName() + " ➔ " + destination.getAbsolutePath());
+            Log.d(TAG, "    [Copying File] " + source.getName() + " -> " + destination.getAbsolutePath());
             try (FileChannel sourceChannel = new java.io.FileInputStream(source).getChannel();
                  FileChannel destChannel = new java.io.FileOutputStream(destination).getChannel()) {
                 long bytesTransferred = sourceChannel.transferTo(0, sourceChannel.size(), destChannel);

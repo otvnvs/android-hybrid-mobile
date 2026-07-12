@@ -19,6 +19,7 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
     private AppConfig mConfig;
     private StorageManager mStorageManager;
     private SecretTriggerDetector mSecretDetector;
+    private com.example.app.services.IntentServiceRegistry mIntentRegistry;
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -95,6 +96,24 @@ public class MainActivity extends Activity implements SecretTriggerDetector.OnTr
 
         String startupPath = mStorageManager.determineStartupPath();
         mWebView.loadUrl(mConfig.getVirtualHost() + startupPath);
+
+    Log.d("JAVA_MainActivity", "Initializing native dynamic Intent routing engine mapping...");
+    mIntentRegistry = new com.example.app.services.IntentServiceRegistry(this);
+    
+    // FIX: Pass 'this' as the current context execution reference parameter
+    mIntentRegistry.dispatchIntent(this, getIntent());
+
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+	    super.onNewIntent(intent);
+	    setIntent(intent); 
+	    
+	    if (mIntentRegistry != null) {
+		// FIX: Pass 'this' as the active context execution reference parameter
+		mIntentRegistry.dispatchIntent(this, intent);
+	    }
     }
 
     @SuppressLint("SetJavaScriptEnabled")

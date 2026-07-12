@@ -61,6 +61,29 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="myapp" android:host="launch" />
             </intent-filter>
+
+
+            <!-- 1. Launch Router Intent (Launcher Icon Trigger) -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <!-- 2. Existing Deep Linking Protocol (myapp://launch) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="myapp" android:host="launch"/>
+            </intent-filter>
+
+            <!-- ─── 3. NEW ADDITION: AHM Hybrid Asset Installer (ahm-app://deploy) ─── -->
+            <intent-filter android:label="AHM Hybrid Asset Installer">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="ahm-app" android:host="deploy"/>
+            </intent-filter>
         </activity>
 
         <!-- Background System Receivers -->
@@ -72,6 +95,11 @@
                 <action android:name="com.example.app.ACTION_BACKGROUND_WRITE" />
             </intent-filter>
         </receiver>
+
+
+
+
+
 
     </application>
 
