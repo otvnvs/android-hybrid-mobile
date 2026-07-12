@@ -138,5 +138,107 @@ public class MaintenanceController {
         String payload = String.format("{\"status\":\"%s\"}", currentStatus);
         return ResponseContext.status(200).contentType("application/json").body(payload).build();
     }
-}
 
+
+	@RequestMapping(path="/api/maintenance/show", method="GET")
+	public ResponseContext showMaintenanceInterfaceDirectly(RequestContext request) {
+	    try {
+		Log.i(TAG, " -> REST API [GET]: Processing explicit maintenance display trigger request.");
+		
+		android.content.Context appCtx = request.getAndroidContext();
+		if (!(appCtx instanceof com.example.app.MainActivity)) {
+		    return ResponseContext.status(500)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Context context tracking configuration mismatch.\"}")
+			.build();
+		}
+		final com.example.app.MainActivity activity = (com.example.app.MainActivity) appCtx;
+
+		// Execute on the UI thread to bypass private property barriers safely via reflection
+		activity.runOnUiThread(new Runnable() {
+		    @Override
+		    public void run() {
+			try {
+			    java.lang.reflect.Field field = com.example.app.MainActivity.class.getDeclaredField("mMaintenanceWebView");
+			    field.setAccessible(true);
+			    android.webkit.WebView maintWebView = (android.webkit.WebView) field.get(activity);
+			    
+			    java.lang.reflect.Field configField = com.example.app.MainActivity.class.getDeclaredField("mConfig");
+			    configField.setAccessible(true);
+			    com.example.app.AppConfig appConfig = (com.example.app.AppConfig) configField.get(activity);
+
+			    if (maintWebView != null && appConfig != null) {
+				maintWebView.loadUrl(appConfig.getVirtualHost() + "/maintenance/index.html");
+				maintWebView.setVisibility(android.view.View.VISIBLE);
+				maintWebView.requestFocus();
+				Log.i(TAG, " -> Reflective show operation forced view display initialization success.");
+			    }
+			} catch (Exception e) {
+			    Log.e(TAG, "Failed executing reflective show sequence inside background thread", e);
+			}
+		    }
+		});
+
+		return ResponseContext.status(200)
+		    .contentType("application/json")
+		    .body("{\"status\":\"success\",\"message\":\"Maintenance view visibility flag altered to VISIBLE.\"}")
+		    .build();
+		    
+	    } catch (Exception e) {
+		Log.e(TAG, "Maintenance show pipeline crash: " + e.getMessage());
+		return ResponseContext.status(500).contentType("application/json").body("{\"status\":\"error\"}").build();
+	    }
+	}
+
+	@RequestMapping(path="/api/maintenance/hide", method="GET")
+	public ResponseContext hideMaintenanceInterfaceDirectly(RequestContext request) {
+	    try {
+		Log.i(TAG, " -> REST API [GET]: Processing explicit maintenance visibility destruction request.");
+		
+		android.content.Context appCtx = request.getAndroidContext();
+		if (!(appCtx instanceof com.example.app.MainActivity)) {
+		    return ResponseContext.status(500)
+			.contentType("application/json")
+			.body("{\"status\":\"error\",\"message\":\"Context context tracking configuration mismatch.\"}")
+			.build();
+		}
+		final com.example.app.MainActivity activity = (com.example.app.MainActivity) appCtx;
+
+		activity.runOnUiThread(new Runnable() {
+		    @Override
+		    public void run() {
+			try {
+			    java.lang.reflect.Field maintField = com.example.app.MainActivity.class.getDeclaredField("mMaintenanceWebView");
+			    maintField.setAccessible(true);
+			    android.webkit.WebView maintWebView = (android.webkit.WebView) maintField.get(activity);
+			    
+			    java.lang.reflect.Field mainField = com.example.app.MainActivity.class.getDeclaredField("mWebView");
+			    mainField.setAccessible(true);
+			    android.webkit.WebView mainWebView = (android.webkit.WebView) mainField.get(activity);
+
+			    if (maintWebView != null) {
+				maintWebView.setVisibility(android.view.View.GONE);
+				maintWebView.loadUrl("about:blank");
+				if (mainWebView != null) {
+				    mainWebView.requestFocus();
+				}
+				Log.i(TAG, " -> Reflective hide operation dismantled overlay viewport configurations.");
+			    }
+			} catch (Exception e) {
+			    Log.e(TAG, "Failed executing reflective hide sequence inside background thread", e);
+			}
+		    }
+		});
+
+		return ResponseContext.status(200)
+		    .contentType("application/json")
+		    .body("{\"status\":\"success\",\"message\":\"Maintenance view visibility flag altered to GONE.\"}")
+		    .build();
+		    
+	    } catch (Exception e) {
+		Log.e(TAG, "Maintenance hide pipeline crash: " + e.getMessage());
+		return ResponseContext.status(500).contentType("application/json").body("{\"status\":\"error\"}").build();
+	    }
+	}
+
+}

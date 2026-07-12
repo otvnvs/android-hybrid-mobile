@@ -22,6 +22,56 @@ public class PermissionsController {
 
     public PermissionsController() {}
 
+@RequestMapping(path="/api/permissions/declared", method="GET")
+public ResponseContext getManifestDeclaredPermissions(RequestContext request) {
+    try {
+        Log.i(TAG, " -> REST API [GET]: Querying application package manifest for declared permissions.");
+        
+        Context context = request.getAndroidContext();
+        if (context == null) {
+            return ResponseContext.status(500)
+                .contentType("application/json")
+                .body("{\"status\":\"error\",\"message\":\"Android context unavailable\"}")
+                .build();
+        }
+
+        // Fetch our own package info, specifically requesting the requested permissions array
+        android.content.pm.PackageInfo packageInfo = context.getPackageManager().getPackageInfo(
+            context.getPackageName(), 
+            android.content.pm.PackageManager.GET_PERMISSIONS
+        );
+
+        org.json.JSONArray manifestPermissionsArray = new org.json.JSONArray();
+        
+        // Ensure the app actually has requested permissions listed
+        if (packageInfo.requestedPermissions != null) {
+            for (String permission : packageInfo.requestedPermissions) {
+                manifestPermissionsArray.put(permission);
+            }
+        }
+
+        org.json.JSONObject result = new org.json.JSONObject();
+        result.put("status", "success");
+        result.put("package_name", context.getPackageName());
+        result.put("declared_permissions", manifestPermissionsArray);
+        result.put("total_count", manifestPermissionsArray.length());
+
+        return ResponseContext.status(200)
+            .contentType("application/json")
+            .header("X-Server-Response-Engine", "Android-Native-JVM")
+            .body(result.toString())
+            .build();
+
+    } catch (Exception e) {
+        Log.e(TAG, "Failed parsing native manifest structures reflectively", e);
+        return ResponseContext.status(500)
+            .contentType("application/json")
+            .body("{\"status\":\"error\",\"message\":\"Manifest lookup failure: " + e.getMessage() + "\"}")
+            .build();
+    }
+}
+
+
     @RequestMapping(path = "/api/permissions/status", method = "POST")
     public ResponseContext checkPermissions(RequestContext request) {
         try {
@@ -69,52 +119,6 @@ public class PermissionsController {
         }
     }
 
-//    @RequestMapping(path = "/api/permissions/request", method = "POST")
-//    public ResponseContext requestPermissions(RequestContext request) {
-//        try {
-//            Context context = request.getAndroidContext();
-//            byte[] bodyBytes = request.getBody();
-//            String rawBodyText = (bodyBytes != null && bodyBytes.length > 0) ? new String(bodyBytes, StandardCharsets.UTF_8) : "{}";
-//            
-//            JSONObject bodyJson = new JSONObject(rawBodyText);
-//            JSONArray standardPermissions = bodyJson.optJSONArray("permissions");
-//
-//            if (standardPermissions == null || standardPermissions.length() == 0) {
-//                return buildErrorResponse(400, "Missing required array parameter: permissions");
-//            }
-//
-//            if (!(context instanceof MainActivity)) {
-//                return buildErrorResponse(422, "Active context must be an instance of MainActivity");
-//            }
-//
-//            final MainActivity activity = (MainActivity) context;
-//            final int totalPerms = standardPermissions.length();
-//            final String[] permissionsArray = new String[totalPerms];
-//            
-//            for (int i = 0; i < totalPerms; i++) {
-//                permissionsArray[i] = standardPermissions.getString(i);
-//            }
-//
-//            // Always trigger asynchronously on the UI thread to prevent layout freezing
-//            activity.runOnUiThread(new Runnable() {
-//                @Override
-//                public void run() {
-//                    if (Build.VERSION.SDK_INT >= 23) {
-//                        activity.requestPermissions(permissionsArray, 2002);
-//                    }
-//                }
-//            });
-//
-//            JSONObject result = new JSONObject();
-//            result.put("status", "success");
-//            result.put("message", "System dialog sequence triggered successfully");
-//            return ResponseContext.status(202).contentType("application/json").body(result.toString()).build();
-//
-//        } catch (Exception e) {
-//            Log.e(TAG, "Permissions request pipeline failure", e);
-//            return buildErrorResponse(500, "System execution failure: " + e.getMessage());
-//        }
-//    }
 @RequestMapping(path="/api/permissions/request", method="POST")
 public ResponseContext requestPermissions(RequestContext request) {
     try {
