@@ -20,15 +20,71 @@ public class AppConfig {
         Log.d(TAG, "AppConfig module tracking initialized.");
     }
 
-    public String getVirtualHost() {
-        String host = context.getString(R.string.virtual_host);
-        if (host == null || host.isEmpty()) return "";
-        return host.startsWith("https://") ? host : "https://" + host;
+//    public String getVirtualHost() {
+//        String host = context.getString(R.string.virtual_host);
+//        if (host == null || host.isEmpty()) return "";
+//        return host.startsWith("https://") ? host : "https://" + host;
+//    }
+public String getVirtualHost() {
+    String host = null;
+    
+    try {
+        // 1. Resolve the resource identifier dynamically by string name
+        int resId = context.getResources().getIdentifier(
+            "virtual_host", 
+            "string", 
+            context.getPackageName()
+        );
+        
+        if (resId != 0) {
+            String declaredHost = context.getString(resId);
+            if (declaredHost != null && !declaredHost.trim().isEmpty()) {
+                host = declaredHost.trim();
+            }
+        }
+    } catch (Exception e) {
+        Log.w(TAG, "Resource configuration lookup failure for virtual host matching: " + e.getMessage());
     }
 
-    public String getWorkspaceFolderName() {
-        return context.getString(R.string.config_workspace_folder_name);
+    // 2. FALLBACK PATHWAY: If missing or blank, apply a secure operational default domain
+    if (host == null) {
+        host = "localhost";
+        Log.i(TAG, " -> [CONFIG FALLBACK] virtual_host is empty or unspecified. defaulting to local signature: " + host);
     }
+
+    // 3. Keep existing protocol tracking enforcement layer intact
+    return host.startsWith("https://") ? host : "https://" + host;
+}
+
+
+//    public String getWorkspaceFolderName() {
+//        return context.getString(R.string.config_workspace_folder_name);
+//    }
+	public String getWorkspaceFolderName() {
+	    try {
+		// 1. Fetch the value from strings.xml dynamically using its resource identifier
+		int resId = context.getResources().getIdentifier(
+		    "config_workspace_folder_name", 
+		    "string", 
+		    context.getPackageName()
+		);
+		
+		if (resId != 0) {
+		    String folderName = context.getString(resId);
+		    if (folderName != null && !folderName.trim().isEmpty()) {
+			return folderName.trim();
+		    }
+		}
+	    } catch (Exception e) {
+		Log.w(TAG, "Resource configuration lookup failure for workspace name folder mapping: " + e.getMessage());
+	    }
+
+	    // 2. FALLBACK PATHWAY: If missing, empty, or unresolvable, return the native app package namespace string
+	    String fallbackIdentifier = context.getPackageName();
+	    Log.i(TAG, " -> [CONFIG FALLBACK] config_workspace_folder_name is empty or unspecified. defaulting to unique package bundle key: " + fallbackIdentifier);
+	    return fallbackIdentifier;
+	}
+
 
     /**
      * Refactored signature to accept and persist the explicit target storage strategy choice.
