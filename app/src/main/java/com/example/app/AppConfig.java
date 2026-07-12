@@ -202,5 +202,26 @@ public String getVirtualHost() {
             return "{}";
         }
     }
+public String getAppVersionTag() {
+    try {
+        int resId = context.getResources().getIdentifier(
+            "app_version_tag", 
+            "string", 
+            context.getPackageName()
+        );
+        if (resId != 0) {
+            String version = context.getString(resId);
+            if (version != null && !version.trim().isEmpty()) {
+                return version.trim();
+            }
+        }
+    } catch (Exception e) {
+        Log.w(TAG, "Resource configuration lookup failure for version tag: " + e.getMessage());
+    }
+
+    // Safe fallback if omitted or left blank in the resource dictionary xml
+    return "1.0.0-release"; 
+}
+
 }
 

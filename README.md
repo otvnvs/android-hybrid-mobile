@@ -31,7 +31,9 @@ The application's runtime boundaries, static asset routing, and secret engineeri
 | `config_workspace_folder_name` | `string` | Sets the physical root subdirectory namespace folder mapped out within the device shared developer workspace directory tracking paths. |
 | `virtual_host` | `string` | The base canonical virtual web domain routing alias passed natively down into the embedded view viewport components. |
 | `enable_secret_trigger_combination` | `bool` | Flag toggle to activate/deactivate the physical volume hardware combo tracking sequence (`Volume Up` + `Volume Down`) used to load the panel view stack. |
+| `app_version_tag` | `string` | Application version, e.g. 1.2.3-beta. |
 
 > ** Configuration Fallback Note:** 
-> If `config_workspace_folder_name` is left blank, whitespace-only, or omitted entirely from your `strings.xml`, the system automatically defaults to using the unique application package bundle identifier (e.g., `com.example.app`). This guarantees a valid local developer sync directory tree is always securely generated under any environment layout variant.
+> * If `config_workspace_folder_name` is left blank, whitespace-only, or omitted entirely from your `strings.xml`, the system automatically defaults to using the unique application package bundle identifier (e.g., `com.example.app`). This guarantees a valid local developer sync directory tree is always securely generated under any environment layout variant.
+> * If `virtual_host` is left blank or omitted entirely, the system automatically defaults to using `localhost` (evaluating to `https://localhost`), safeguarding the embedded viewport pipeline against parsing or uninitialized address faults.
 
