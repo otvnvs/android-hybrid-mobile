@@ -35,7 +35,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            cursor: pointer; /* Makes it visually clear that the bolt is clickable */
+            cursor: pointer;
         }
         .lightning-bolt {
             width: 100%;
@@ -62,6 +62,15 @@
             line-height: 1.4;
             border-top: 1px solid #222222;
             padding-top: 16px;
+        }
+        /* Style for the failure message */
+        .error-message {
+            color: #ff4d4d;
+            font-size: 0.75rem;
+            margin-top: 12px;
+            text-align: center;
+            max-width: 80%;
+            font-weight: 500;
         }
         #maintenance-screen {
             position: fixed;
@@ -97,7 +106,6 @@
 <body>
 
     <!--Main Application Screen-->
-    <!-- Added id="lightning-trigger" to make it targetable in JS -->
     <div class="logo-container" id="lightning-trigger">
         <svg width="512" height="512" viewBox="0 0 135.46666 135.46667" version="1.1" id="svg5" inkscape:version="1.2.2 (b0a8486541, 2022-12-01)" sodipodi:docname="icon.svg" xmlns:inkscape="http://inkscape.org" xmlns:sodipodi="http://sourceforge.net" xmlns:xlink="http://w3.org" xmlns="http://w3.org" xmlns:svg="http://w3.org">
             <sodipodi:namedview id="namedview7" pagecolor="#ffffff" bordercolor="#666666" borderopacity="1.0" inkscape:pageshadow="2" inkscape:pageopacity="0.0" inkscape:pagecheckerboard="0" inkscape:document-units="mm" showgrid="false" units="px" inkscape:zoom="0.64052329" inkscape:cx="117.87237" inkscape:cy="567.50474" inkscape:window-width="2560" inkscape:window-height="1563" inkscape:window-x="0" inkscape:window-y="0" inkscape:window-maximized="1" inkscape:current-layer="layer1" inkscape:showpageshadow="2" inkscape:deskcolor="#d1d1d1"/>
@@ -115,9 +123,9 @@
     </div>
 
     <!--Instruction block-->
-    <div class="instruction">Press the <strong>Volume Up</strong> and <strong>Volume Down</strong> to configure...</div>
+    <div class="instruction" id="instruction-block">Press the <strong>Volume Up</strong> and <strong>Volume Down</strong> to configure...</div>
 
-    <!--Hidden Maintenance Screen-->
+    <!--Hidden Maintenance Screen (Retained for the hardware keys layout)-->
     <div id="maintenance-screen">
         <h2>Maintenance Mode</h2>
         <p>System updates and diagnostic tools are available here.</p>
@@ -143,24 +151,93 @@
             }
         });
 
-        // Click handler for the lightning bolt container
-        document.getElementById('lightning-trigger').addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/maintenance/show', { method: 'GET' });
-                
-                // Assuming your API returns a JSON status like { show: true } 
-                // or you just want to trigger the UI if the request succeeds:
-                if (response.ok) {
-                    toggleMaintenance(true);
-                } else {
-                    console.error('API responded with an error:', response.status);
-                }
-            } catch (error) {
-                console.error('Failed to fetch maintenance status:', error);
-                // Optional fallback: toggle anyway if offline/testing
-                // toggleMaintenance(true);
+        // Click handler for the lightning bolt
+//        document.getElementById('lightning-trigger').addEventListener('click', async () => {
+//            // Remove any previous error message if the user clicks again
+//            const existingError = document.getElementById('api-error');
+//            if (existingError) {
+//                existingError.remove();
+//            }
+//
+//            try {
+//                const response = await fetch('/api/maintenance/shows', { method: 'GET' });
+//                
+//                // If response is bad (e.g. 404, 500), trigger the failure state
+//                if (!response.ok) {
+//                    showError();
+//                }
+//                // If response is successful, it safely finishes without altering the UI screen.
+//            } catch (error) {
+//                // Triggered if network fails entirely (offline, refused connection, etc.)
+//                showError();
+//            }
+//        });
+// Click handler for the lightning bolt
+document.getElementById('lightning-trigger').addEventListener('click', async () => {
+    // Remove any previous error message if the user clicks again
+    const existingError = document.getElementById('api-error');
+    if (existingError) {
+        existingError.remove();
+    }
+
+    try {
+        const response = await fetch('/api/maintenance/show', { method: 'GET' });
+        const errorBody = await response.text();
+        
+        // 1. Check for standard HTTP network errors (404, 500, etc.)
+        if (!response.ok) {
+            console.error('API Error Response:', {
+                status: response.status,
+                statusText: response.statusText,
+                url: response.url,
+                body: errorBody
+            });
+            showError();
+            return; // Exit early
+        }
+
+        // 2. Check for application-level errors wrapped inside a 200 OK response
+        try {
+            const jsonBody = JSON.parse(errorBody);
+            
+            if (jsonBody && jsonBody.status === 'error') {
+                console.error('API Error Response (Internal App Error):', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    url: response.url,
+                    body: errorBody
+                });
+                showError();
+                return; // Exit early
             }
-        });
+        } catch (e) {
+            // The body wasn't valid JSON, which is fine if a successful 200 response 
+            // isn't expected to be JSON. If it's supposed to be JSON, you can handle it here.
+        }
+
+        // If response is completely successful (HTTP 200 and no nested error status),
+        // it finishes cleanly without altering the UI screen.
+
+    } catch (error) {
+        // Triggered if the network fails completely (e.g., connection refused)
+        console.error('Network Failure Error Object:', error);
+        showError();
+    }
+});
+
+
+        function showError() {
+            // Check if it already exists to prevent duplicate text elements
+            if (!document.getElementById('api-error')) {
+                const errorDiv = document.createElement('div');
+                errorDiv.id = 'api-error';
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = 'Maintenance screen is not available';
+                
+                // Appends the red text directly under the instructions block
+                document.getElementById('instruction-block').insertAdjacentElement('afterend', errorDiv);
+            }
+        }
 
         function toggleMaintenance(show) {
             const screen = document.getElementById('maintenance-screen');
