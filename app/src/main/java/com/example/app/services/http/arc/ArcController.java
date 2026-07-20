@@ -21,7 +21,7 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 
 public class ArcController {
-    private static final String TAG = "ArcController";
+    private static final String TAG = "JS_CONSOLE_ArcController";
     private static final ConcurrentHashMap<String, ReentrantLock> zipSourceLocks = new ConcurrentHashMap<>();
 
     public ArcController() {}
@@ -107,6 +107,7 @@ public class ArcController {
 
     @RequestMapping(path="/api/arc/unzip", method="POST")
     public ResponseContext unzipArchiveFile(RequestContext request) {
+        Log.d(TAG, "public ResponseContext unzipArchiveFile(RequestContext request)");
         ReentrantLock sourceLock = null;
         try {
             String jsonConfig = new String(request.getBody(), StandardCharsets.UTF_8);
@@ -183,6 +184,7 @@ public class ArcController {
     }
     @RequestMapping(path="/api/arc/zip", method="POST")
     public ResponseContext zipDirectoryOrFile(RequestContext request) {
+        Log.d(TAG, "public ResponseContext zipDirectoryOrFile(RequestContext request)");
         try {
             String jsonConfig = new String(request.getBody(), StandardCharsets.UTF_8);
             JSONObject zipRequest = new JSONObject(jsonConfig);
