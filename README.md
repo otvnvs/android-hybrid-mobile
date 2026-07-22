@@ -1,61 +1,63 @@
 # Android Hybrid Mobile Application
 
-## Building
+Basic Android Hybrid Mobile application.
+
+## Prerequisites - Windows
+
+Todo...
+
+## Prerequisites - WSL
+
+Todo...
+
+## Prerequisites - Linux
+
+```bash
+sudo apt install openjdk-11-jdk -y
+sudo apt install openjdk-17-jdk -y
+mkdir -p $HOME/Android/cmdline-tools
+cd $HOME/Android/
+wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+unzip commandlinetools-linux-11076708_latest.zip -d cmdline-tools/
+mv cmdline-tools/cmdline-tools cmdline-tools/latest
+rm commandlinetools-linux-11076708_latest.zip
+yes | JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 $HOME/Android/cmdline-tools/latest/bin/sdkmanager --licenses
+
+# install emulator
+yes | JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 $HOME/Android/cmdline-tools/latest/bin/sdkmanager --install "emulator"
+sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils -y
+sudo adduser $USER kvm
+sudo apt install util-linux-extra -y
+newgrp kvm
+yes | JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 $HOME/Android/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-35;google_apis;x86_64"
+yes | JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 $HOME/Android/cmdline-tools/latest/bin/sdkmanager --install "platform-tools"
+# select no for custom profile
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 $HOME/Android/cmdline-tools/latest/bin/avdmanager create avd -n "Medium_Phone_API_35" -k "system-images;android-35;google_apis;x86_64"
+```
+
+Remote emulator connection
+
+```bash
+# ubuntu
+~/Android/platform-tools/adb kill-server
+./scripts/linux/emulator.sh --headless --cold
+~/Android/platform-tools/adb devices
+
+# wsl
+ssh -CN -L 5556:127.0.0.1:5555 skullquake@192.168.0.44
+/mnt/c/opt/scrcpy/adb.exe kill-server
+/mnt/c/opt/scrcpy/adb.exe connect 127.0.0.1:5556
+/mnt/c/opt/scrcpy/scrcpy.exe -s 127.0.0.1:5556
+```
+
+## Prerequisites - Termux
+
+Todo...
+
+# Building
 
 ```bash
 ./gradlew assemble
 ```
 
 Or commit with message `release[:title[:description]]` and `./.github/workflows/build.yml` will build a new Release.
-
-# Android Hybrid Mobile Application
-
-## Building
-
-```bash
-./gradlew assemble
-```
-
-Or commit with message `release[:title[:description]]` and `./.github/workflows/build.yml` will build a new Release.
-
-## Configuration Parameters (`strings.xml`)
-
-The application's runtime boundaries, static asset routing, and secret engineering diagnostic tools are globally controlled via XML metadata. These properties are declared in the layout resource catalog inside:
-`app/src/main/res/values/strings.xml`
-
-### Available Keys & Settings Matrix
-
-| Variable Identifier | Expected Data Type | Functional Production Purpose |
-| :--- | :---: | :--- |
-| `app_name` | `string` | The user-facing software brand title registered natively into the device operating system dashboard layer. |
-| `config_workspace_folder_name` | `string` | Sets the physical root subdirectory namespace folder mapped out within the device shared developer workspace directory tracking paths. |
-| `virtual_host` | `string` | The base canonical virtual web domain routing alias passed natively down into the embedded view viewport components. |
-| `enable_secret_trigger_combination` | `bool` | Flag toggle to activate/deactivate the physical volume hardware combo tracking sequence (`Volume Up` + `Volume Down`) used to load the panel view stack. |
-| `app_version_tag` | `string` | Application version, e.g. 1.2.3-beta. |
-
-> ** Configuration Fallback Note:** 
-> * If `config_workspace_folder_name` is left blank, whitespace-only, or omitted entirely from your `strings.xml`, the system automatically defaults to using the unique application package bundle identifier (e.g., `com.example.app`). This guarantees a valid local developer sync directory tree is always securely generated under any environment layout variant.
-> * If `virtual_host` is left blank or omitted entirely, the system automatically defaults to using `localhost` (evaluating to `https://localhost`), safeguarding the embedded viewport pipeline against parsing or uninitialized address faults.
-
-
-
-
-
-````xml
-    <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-    </intent-filter>
-
-    <!-- ─── UPDATED INTERCEPT INTENT FILTER ─── -->
-    <intent-filter android:label="AHM Hybrid Asset Installer">
-        <action android:name="android.intent.action.VIEW" />
-        <category android:name="android.intent.category.DEFAULT" />
-        <category android:name="android.intent.category.BROWSABLE" />
-
-        <!-- Scheme changed from otv-app to ahm-app -->
-        <data 
-            android:scheme="ahm-app" 
-            android:host="deploy" />
-    </intent-filter>
-```
